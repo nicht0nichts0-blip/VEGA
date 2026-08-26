@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VEGA // MESH ROOMS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        body { background-color: #030712; font-family: 'JetBrains Mono', monospace; }
+        .cyber-border { border: 1px solid rgba(6, 182, 212, 0.3); }
+        .cyber-card { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(12px); }
+    </style>
+</head>
+<body class="text-cyan-400 h-screen flex flex-col p-3 max-w-5xl mx-auto">
+
+    <!-- Header -->
+    <header class="flex justify-between items-center pb-2 border-b border-cyan-900/50 mb-3">
+        <h1 class="text-lg font-bold text-cyan-300 tracking-widest">VEGA//MESH</h1>
+        <div class="text-xs text-slate-500">E2EE ENCRYPTED CHAT</div>
+    </header>
+
+    <!-- Top Settings Bar: Room, Nick, Key -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3 cyber-card p-3 rounded-xl cyber-border">
+        <div>
+            <label class="text-[10px] text-slate-500 block mb-1">КОМНАТА (GROUP ID):</label>
+            <input type="text" id="roomInput" value="main-room" class="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-cyan-200 focus:outline-none focus:border-cyan-500">
+        </div>
+        <div>
+            <label class="text-[10px] text-slate-500 block mb-1">ИМЯ (NICKNAME):</label>
+            <input type="text" id="nickInput" value="Agent_X" class="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-cyan-200 focus:outline-none focus:border-cyan-500">
+        </div>
+        <div>
+            <label class="text-[10px] text-slate-500 block mb-1">КЛЮЧ ШИФРОВАНИЯ:</label>
+            <input type="password" id="secretKey" placeholder="Секретный пароль..." class="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-cyan-200 focus:outline-none focus:border-cyan-500">
+        </div>
+    </div>
+
+    <button onclick="connectToRoom()" class="mb-3 w-full bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 text-xs py-1.5 rounded-lg transition font-bold">
+        🔄 ПОДКЛЮЧИТЬСЯ К КОМНАТЕ
+    </button>
+
+    <!-- Messages Container -->
+    <div id="messages" class="flex-1 overflow-y-auto space-y-3 p-4 cyber-card rounded-xl cyber-border mb-3">
+        <div class="text-xs text-slate-600 border-b border-slate-900 pb-2">[SYSTEM]: Введите комнату и нажмите «Подключиться».</div>
+    </div>
+
+    <!-- Controls -->
+    <div class="cyber-card p-3 rounded-xl cyber-border space-y-2">
+        <div class="flex gap-2 text-xs">
+            <label class="bg-slate-950 hover:bg-slate-900 border border-cyan-900/60 px-3 py-1 rounded cursor-pointer text-cyan-300">
+                📎 Медиа
+                <input type="file" id="fileInput" class="hidden" accept="image/*,video/*" onchange="sendFile(this)">
+            </label>
+            <button id="recordBtn" onclick="toggleVoiceRecord()" class="bg-slate-950 hover:bg-slate-900 border border-cyan-900/60 px-3 py-1 rounded text-cyan-300">
+                🎙️ <span id="recordText">Голос</span>
+            </button>
+        </div>
+
+        <form id="chatForm" class="flex gap-2">
+            <input type="text" id="messageInput" placeholder="Сообщение..." class="flex-1 bg-slate-950 border border-cyan-900/80 rounded-lg px-4 py-2 text-cyan-100 text-sm focus:outline-none focus:border-cyan-400">
+            <button type="submit" class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-6 py-2 rounded-lg text-sm">SEND</button>
+        </form>
+    </div>
+
+    <script>
+        let ws;
+        const messagesDiv = document.getElementById('messages');
+        const form = document.getElementById('chatForm');
+        const input = document.getElementById('messageInput');
+        const secretKeyInput = document.getElementById('secretKey');
+        const roomInput = document.getElementById('roomInput');
+        const nickInput = document.getElementById('nickInput');
+
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+
+        function connectToRoom() {
+            const room = roomInput.value.trim() || 'main-room';
+            if (ws) ws.close();
+
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${location.host}/ws/${room}`);
+
+            ws.onmessage = async (event) => {
+                const secret = secretKeyInput.value || "default";
+                const payload = JSON.parse(event.data);
+
+                const decryptedBuffer = await decryptData(payload.data, secret);
+                const senderNick = payload.sender || "Аноним";
+                const isMyMessage = senderNick === nickInput.value;
+
+                if (!decryptedBuffer) {
+                    appendElement("Ошибка расшифровки", senderNick, isMyMessage);
+                    return;
+                }
+
+                if (payload.type === 'text') {
+                    const text = new TextDecoder().decode(decryptedBuffer);
+                    appendElement(text, senderNick, isMyMessage);
+                } else if (payload.type === 'image') {
+                    const blob = new Blob([decryptedBuffer]);
+                    appendMediaElement('img', URL.createObjectURL(blob), senderNick, isMyMessage);
+                } else if (payload.type === 'video') {
+                    const blob = new Blob([decryptedBuffer]);
+                    appendMediaElement('video', URL.createObjectURL(blob), senderNick, isMyMessage);
+                } else if (payload.type === 'audio') {
+                    const blob = new Blob([decryptedBuffer], { type: 'audio/webm' });
+                    appendMediaElement('audio', URL.createObjectURL(blob), senderNick, isMyMessage);
+                }
+            };
+
+            appendSystemMessage(`Подключено к комнате: ${room}`);
+        }
+
+        // Crypto Helpers
+        async function getCryptoKey(secret) {
+            const enc = new TextEncoder();
+            return await crypto.subtle.importKey(
+                "raw", enc.encode(secret.padEnd(32, '0').slice(0, 32)),
+                "AES-GCM", false, ["encrypt", "decrypt"]
+            );
+        }
+
+        async function encryptData(arrayBuffer, secret) {
+            const key = await getCryptoKey(secret);
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, arrayBuffer);
+            const combined = new Uint8Array(iv.length + ciphertext.byteLength);
+            combined.set(iv, 0);
+            combined.set(new Uint8Array(ciphertext), iv.length);
+
+            let binary = '';
+            const bytes = new Uint8Array(combined);
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return btoa(binary);
+        }
+
+        async function decryptData(base64Data, secret) {
+            try {
+                const key = await getCryptoKey(secret);
+                const binary = atob(base64Data);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+                const iv = bytes.slice(0, 12);
+                const data = bytes.slice(12);
+                return await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // Form submits (Без дублирования - отправляем только в WS!)
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            if (!input.value || !ws) return;
+
+            const secret = secretKeyInput.value || "default";
+            const enc = new TextEncoder().encode(input.value);
+            const encrypted = await encryptData(enc, secret);
+
+            ws.send(JSON.stringify({
+                sender: nickInput.value,
+                type: 'text',
+                data: encrypted
+            }));
+            input.value = '';
+        };
+
+        async function sendFile(fileInput) {
+            const file = fileInput.files[0];
+            if (!file || !ws) return;
+
+            const secret = secretKeyInput.value || "default";
+            const arrayBuffer = await file.arrayBuffer();
+            const encrypted = await encryptData(arrayBuffer, secret);
+
+            const fileType = file.type.startsWith('video/') ? 'video' : 'image';
+            ws.send(JSON.stringify({
+                sender: nickInput.value,
+                type: fileType,
+                data: encrypted
+            }));
+            fileInput.value = '';
+        }
+
+        async function toggleVoiceRecord() {
+            const recordBtn = document.getElementById('recordBtn');
+            const recordText = document.getElementById('recordText');
+
+            if (!isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+
+                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                    mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const arrayBuffer = await audioBlob.arrayBuffer();
+                        const secret = secretKeyInput.value || "default";
+                        const encrypted = await encryptData(arrayBuffer, secret);
+
+                        ws.send(JSON.stringify({
+                            sender: nickInput.value,
+                            type: 'audio',
+                            data: encrypted
+                        }));
+                    };
+
+                    mediaRecorder.start();
+                    isRecording = true;
+                    recordText.innerText = "ЗАПИСЬ...";
+                    recordBtn.classList.add('border-red-500', 'text-red-400');
+                } catch (e) {
+                    alert("Нужен HTTPS или localhost!");
+                }
+            } else {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(t => t.stop());
+                isRecording = false;
+                recordText.innerText = "Голос";
+                recordBtn.classList.remove('border-red-500', 'text-red-400');
+            }
+        }
+
+        // Render Helpers
+        function appendElement(text, sender, isMyMessage) {
+            const wrap = document.createElement('div');
+            wrap.className = isMyMessage ? 'flex justify-end' : 'flex justify-start';
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            wrap.innerHTML = `
+                <div class="max-w-[85%] border rounded-xl p-2.5 text-sm ${isMyMessage ? 'bg-cyan-950/40 border-cyan-800/60 text-cyan-200' : 'bg-slate-900/80 border-slate-700/60 text-emerald-300'}">
+                    <div class="text-[9px] text-slate-500 mb-1 flex justify-between gap-4">
+                        <span class="font-bold text-cyan-400">${sender}</span>
+                        <span>${time}</span>
+                    </div>
+                    <div class="break-words font-sans">${escapeHtml(text)}</div>
+                </div>
+            `;
+            messagesDiv.appendChild(wrap);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function appendMediaElement(tag, url, sender, isMyMessage) {
+            const wrap = document.createElement('div');
+            wrap.className = isMyMessage ? 'flex justify-end' : 'flex justify-start';
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            let mediaHtml = '';
+            if (tag === 'img') mediaHtml = `<img src="${url}" class="max-w-xs rounded-lg border border-cyan-900/60">`;
+            else if (tag === 'video') mediaHtml = `<video src="${url}" controls class="max-w-xs rounded-lg border border-cyan-900/60"></video>`;
+            else if (tag === 'audio') mediaHtml = `<audio src="${url}" controls class="h-9 w-60"></audio>`;
+
+            wrap.innerHTML = `
+                <div class="max-w-[85%] border rounded-xl p-2 text-sm ${isMyMessage ? 'bg-cyan-950/40 border-cyan-800/60' : 'bg-slate-900/80 border-slate-700/60'}">
+                    <div class="text-[9px] text-slate-500 mb-1 flex justify-between gap-4">
+                        <span class="font-bold text-cyan-400">${sender}</span>
+                        <span>${time}</span>
+                    </div>
+                    ${mediaHtml}
+                </div>
+            `;
+            messagesDiv.appendChild(wrap);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function appendSystemMessage(text) {
+            const el = document.createElement('div');
+            el.className = 'text-xs text-slate-600 border-b border-slate-900 pb-1';
+            el.innerText = `[SYSTEM]: ${text}`;
+            messagesDiv.appendChild(el);
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        // Автоподключение при старте
+        connectToRoom();
+// Регистрация фонового Service Worker для пушей при закрытом браузере
+if ('serviceWorker' in navigator && 'PushManager' in window) {
+    navigator.serviceWorker.register('/sw.js')
+        .then(async (reg) => {
+            console.log('Service Worker зарегистрирован!', reg);
+
+            // Запрос подписки при клике на кнопку пушей
+            document.getElementById('notifyBtn').onclick = async () => {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    const room = roomInput.value.trim() || 'main-room';
+
+                    // Регистрируем пуш-подписку устройства
+                    const sub = await reg.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: false // На HTTPS хостинге укажем публичный VAPID ключ
+                    });
+
+                    await fetch(`/subscribe/${room}`, {
+                        method: 'POST',
+                        body: JSON.stringify(sub),
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+
+                    document.getElementById('notifyText').innerText = "Фоновые пуши активны";
+                }
+            };
+        })
+        .catch(err => console.error('Ошибка SW:', err));
+}
+    // Регистрация фонового Service Worker для пушей при закрытом браузере
+if ('serviceWorker' in navigator && 'PushManager' in window) {
+    navigator.serviceWorker.register('/sw.js')
+        .then(async (reg) => {
+            console.log('Service Worker зарегистрирован!', reg);
+
+            // Запрос подписки при клике на кнопку пушей
+            document.getElementById('notifyBtn').onclick = async () => {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    const room = roomInput.value.trim() || 'main-room';
+
+                    // Регистрируем пуш-подписку устройства
+                    const sub = await reg.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: false // На HTTPS хостинге укажем публичный VAPID ключ
+                    });
+
+                    await fetch(`/subscribe/${room}`, {
+                        method: 'POST',
+                        body: JSON.stringify(sub),
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+
+                    document.getElementById('notifyText').innerText = "Фоновые пуши активны";
+                }
+            };
+        })
+        .catch(err => console.error('Ошибка SW:', err));
+}
+    </script>
+</body>
+</html>

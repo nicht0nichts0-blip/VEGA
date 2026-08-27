@@ -61,7 +61,6 @@
         .delete-btn { background: #ef4444; color: white; }
         .delete-btn:hover { background: #dc2626; }
 
-        /* Глитч-анимация для админа */
         @keyframes glitch {
             0% { text-shadow: 2px 0 #ff00ff, -2px 0 #00ffff; }
             25% { text-shadow: -2px 0 #ff00ff, 2px 0 #00ffff; }
@@ -78,7 +77,6 @@
             content: '👑 ';
         }
 
-        /* Стили для видео-звонка */
         .call-container {
             position: fixed;
             top: 0;
@@ -129,7 +127,6 @@
             font-size: 12px;
         }
 
-        /* ВЕРХНИЕ КНОПКИ УПРАВЛЕНИЯ ЗВОНКОМ */
         .call-controls-top {
             position: fixed;
             top: 20px;
@@ -198,7 +195,6 @@
             color: white;
         }
 
-        /* Входящий звонок */
         .incoming-call {
             position: fixed;
             top: 50%;
@@ -255,7 +251,6 @@
             background: #dc2626;
         }
 
-        /* Таймер звонка */
         .call-timer {
             color: #94a3b8;
             font-size: 13px;
@@ -264,7 +259,6 @@
             text-align: center;
         }
 
-        /* Избранные комнаты */
         .favorite-rooms {
             display: flex;
             flex-wrap: wrap;
@@ -299,7 +293,6 @@
             opacity: 1;
         }
 
-        /* Анимация пульсации для входящего звонка */
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
@@ -307,17 +300,39 @@
         .incoming-call .caller {
             animation: pulse 1.5s ease-in-out infinite;
         }
+
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .status-dot.online {
+            background: #22c55e;
+        }
+        .status-dot.offline {
+            background: #ef4444;
+        }
+        .status-dot.connecting {
+            background: #fbbf24;
+            animation: pulse 1s ease-in-out infinite;
+        }
     </style>
 </head>
 <body class="text-cyan-400 h-screen flex flex-col p-3 max-w-5xl mx-auto">
 
-    <!-- Header -->
     <header class="flex justify-between items-center pb-2 border-b border-cyan-900/50 mb-3">
         <h1 class="text-lg font-bold text-cyan-300 tracking-widest">VEGA//MESH</h1>
-        <div class="text-xs text-slate-500">E2EE ENCRYPTED CHAT</div>
+        <div class="flex items-center gap-3">
+            <span class="text-xs text-slate-500">E2EE ENCRYPTED CHAT</span>
+            <span id="connectionStatus" class="flex items-center text-xs">
+                <span class="status-dot offline" id="statusDot"></span>
+                <span id="statusText" class="text-slate-500">Отключено</span>
+            </span>
+        </div>
     </header>
 
-    <!-- Избранные комнаты -->
     <div class="mb-2">
         <div class="flex items-center gap-2 mb-1">
             <span class="text-[10px] text-slate-500">⭐ ИЗБРАННЫЕ КОМНАТЫ:</span>
@@ -328,7 +343,6 @@
         <div id="favoriteRooms" class="favorite-rooms"></div>
     </div>
 
-    <!-- Top Settings Bar -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3 cyber-card p-3 rounded-xl cyber-border">
         <div>
             <label class="text-[10px] text-slate-500 block mb-1">КОМНАТА:</label>
@@ -345,7 +359,7 @@
     </div>
 
     <div class="grid grid-cols-2 gap-2 mb-3">
-        <button onclick="connectToRoom()" class="w-full bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 text-xs py-1.5 rounded-lg transition font-bold">
+        <button onclick="connectToRoom()" id="connectBtn" class="w-full bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 text-xs py-1.5 rounded-lg transition font-bold">
             🔄 ПОДКЛЮЧИТЬСЯ
         </button>
         <button onclick="startCall()" id="startCallBtn" class="w-full bg-green-950 hover:bg-green-900 text-green-300 border border-green-800 text-xs py-1.5 rounded-lg transition font-bold">
@@ -357,12 +371,10 @@
         Включить уведомления
     </button>
 
-    <!-- Messages Container -->
     <div id="messages" class="flex-1 overflow-y-auto space-y-3 p-4 cyber-card rounded-xl cyber-border mb-3">
         <div class="text-xs text-slate-600 border-b border-slate-900 pb-2">[SYSTEM]: Введите комнату и нажмите «Подключиться».</div>
     </div>
 
-    <!-- Controls -->
     <div class="cyber-card p-3 rounded-xl cyber-border space-y-2">
         <div class="flex gap-2 text-xs">
             <label class="bg-slate-950 hover:bg-slate-900 border border-cyan-900/60 px-3 py-1 rounded cursor-pointer text-cyan-300">
@@ -380,7 +392,6 @@
         </form>
     </div>
 
-    <!-- Call Overlay -->
     <div id="callContainer" class="call-container">
         <div class="video-grid" id="videoGrid">
             <div class="video-wrapper" id="localVideoWrapper">
@@ -394,7 +405,6 @@
         </div>
     </div>
 
-    <!-- ВЕРХНИЕ КНОПКИ УПРАВЛЕНИЯ ЗВОНКОМ -->
     <div id="callControlsTop" class="call-controls-top">
         <span class="call-status" id="callStatus">📞 В звонке</span>
         <span class="call-timer" id="callTimer">00:00</span>
@@ -404,7 +414,6 @@
         <button class="call-btn-top end" onclick="endCall()">📞</button>
     </div>
 
-    <!-- Incoming Call Dialog -->
     <div id="incomingCall" class="incoming-call">
         <h3>📞 Входящий звонок</h3>
         <div class="caller" id="callerName">Аноним</div>
@@ -414,7 +423,6 @@
         </div>
     </div>
 
-    <!-- Edit Modal -->
     <div id="editModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7);">
         <div style="background: #0f172a; margin: 15% auto; padding: 25px; border-radius: 12px; max-width: 500px; width: 90%; border: 1px solid rgba(6, 182, 212, 0.3);">
             <h3 style="color: #22d3ee; margin-top: 0;">✏️ Редактировать сообщение</h3>
@@ -435,6 +443,9 @@
         const secretKeyInput = document.getElementById('secretKey');
         const roomInput = document.getElementById('roomInput');
         const nickInput = document.getElementById('nickInput');
+        const connectBtn = document.getElementById('connectBtn');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
 
         let mediaRecorder;
         let audioChunks = [];
@@ -444,8 +455,9 @@
         let reconnectTimer = null;
         let reconnectAttempts = 0;
         const MAX_RECONNECT_ATTEMPTS = 5;
+        let isManuallyDisconnected = false;
+        let initialConnectAttempted = false;
 
-        // ===== ХРАНЕНИЕ ДАННЫХ =====
         const STORAGE_KEYS = {
             CHAT_HISTORY: 'vega_chat_history',
             FAVORITE_ROOMS: 'vega_favorite_rooms',
@@ -478,7 +490,6 @@
         const callTimer = document.getElementById('callTimer');
         const startCallBtn = document.getElementById('startCallBtn');
 
-        // STUN серверы для WebRTC
         const configuration = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -486,9 +497,15 @@
             ]
         };
 
+        // ===== УПРАВЛЕНИЕ СТАТУСОМ =====
+        function updateConnectionStatus(status, message) {
+            statusDot.className = 'status-dot ' + status;
+            statusText.textContent = message;
+            statusText.className = 'text-xs ' + (status === 'online' ? 'text-green-400' : status === 'connecting' ? 'text-yellow-400' : 'text-slate-500');
+        }
+
         // ===== СЕКРЕТНЫЙ АДМИН-НИК =====
         function checkAdminNick(nick) {
-            // Проверяем код 159357 в нике (может быть в любом месте)
             if (nick.includes('159357')) {
                 return 'Anatoliy(Admin)';
             }
@@ -499,7 +516,6 @@
         function saveChatHistory(room, messages) {
             try {
                 const history = JSON.parse(localStorage.getItem(STORAGE_KEYS.CHAT_HISTORY) || '{}');
-                // Ограничиваем историю 500 сообщениями на комнату
                 if (messages.length > 500) {
                     messages = messages.slice(-500);
                 }
@@ -520,25 +536,14 @@
             }
         }
 
-        function clearChatHistory(room) {
-            try {
-                const history = JSON.parse(localStorage.getItem(STORAGE_KEYS.CHAT_HISTORY) || '{}');
-                delete history[room];
-                localStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(history));
-            } catch (e) {
-                console.error('Ошибка очистки истории:', e);
-            }
-        }
-
         function displayChatHistory(room) {
             const messages = loadChatHistory(room);
-            // Очищаем сообщения, но оставляем системное
             messagesDiv.innerHTML = '<div class="text-xs text-slate-600 border-b border-slate-900 pb-2">[SYSTEM]: История чата</div>';
 
             messages.forEach(msg => {
-                const isMyMessage = msg.sender === nickInput.value;
+                const isMyMessage = msg.sender === checkAdminNick(nickInput.value);
                 if (msg.type === 'text') {
-                    appendElement(msg.text, msg.sender, isMyMessage, false);
+                    appendElement(msg.text, msg.sender, isMyMessage, false, msg.id);
                 } else if (msg.type === 'system') {
                     appendSystemMessage(msg.text);
                 }
@@ -605,7 +610,7 @@
             `).join('');
         }
 
-        // ===== СЕССИЯ (авто-переподключение на 24 часа) =====
+        // ===== СЕССИЯ =====
         function saveSession(room, nick, secret) {
             try {
                 const session = {
@@ -613,7 +618,7 @@
                     nick: nick,
                     secret: secret,
                     timestamp: Date.now(),
-                    expires: Date.now() + 24 * 60 * 60 * 1000 // 24 часа
+                    expires: Date.now() + 24 * 60 * 60 * 1000
                 };
                 localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(session));
             } catch (e) {
@@ -651,16 +656,20 @@
             const room = roomInput.value.trim() || 'main-room';
             currentRoom = room;
 
-            // Сохраняем сессию
             saveSession(room, nickInput.value, secretKeyInput.value);
-
-            // Загружаем историю
             displayChatHistory(room);
 
             if (ws) {
                 clearInterval(heartbeatInterval);
+                isManuallyDisconnected = true;
                 ws.close();
+                ws = null;
             }
+
+            isManuallyDisconnected = false;
+            updateConnectionStatus('connecting', 'Подключение...');
+            connectBtn.disabled = true;
+            connectBtn.textContent = '⏳ ПОДКЛЮЧЕНИЕ...';
 
             const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${protocol}//${location.host}/ws/${room}`);
@@ -672,6 +681,8 @@
                     reconnectTimer = null;
                 }
                 reconnectAttempts = 0;
+                isManuallyDisconnected = false;
+                initialConnectAttempted = true;
 
                 heartbeatInterval = setInterval(() => {
                     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -679,6 +690,9 @@
                     }
                 }, 25000);
 
+                updateConnectionStatus('online', 'Подключено');
+                connectBtn.disabled = false;
+                connectBtn.textContent = '🔄 ПОДКЛЮЧИТЬСЯ';
                 appendSystemMessage(`Подключено к комнате: ${room}`);
                 renderFavoriteRooms();
             };
@@ -689,13 +703,11 @@
 
                 if (payload.type === 'pong') return;
 
-                // ===== ОБРАБОТКА СИГНАЛОВ ЗВОНКА =====
                 if (payload.type === 'call_signal') {
                     handleCallSignal(payload);
                     return;
                 }
 
-                // Обработка удаления
                 if (payload.type === 'delete') {
                     const el = document.getElementById(`msg-${payload.msgId}`);
                     if (el) {
@@ -703,9 +715,12 @@
                         if (parent) {
                             parent.style.transition = 'opacity 0.3s';
                             parent.style.opacity = '0';
-                            setTimeout(() => parent.remove(), 300);
+                            setTimeout(() => {
+                                if (parent.parentNode) {
+                                    parent.remove();
+                                }
+                            }, 300);
                         }
-                        // Удаляем из истории
                         const history = loadChatHistory(currentRoom);
                         const updatedHistory = history.filter(msg => msg.id !== payload.msgId);
                         saveChatHistory(currentRoom, updatedHistory);
@@ -713,7 +728,6 @@
                     return;
                 }
 
-                // Обработка редактирования
                 if (payload.type === 'edit') {
                     const el = document.getElementById(`msg-${payload.msgId}`);
                     if (el && payload.data) {
@@ -729,7 +743,6 @@
                                     el.style.background = '';
                                 }, 500);
 
-                                // Обновляем в истории
                                 const history = loadChatHistory(currentRoom);
                                 const msgIndex = history.findIndex(msg => msg.id === payload.msgId);
                                 if (msgIndex > -1) {
@@ -744,41 +757,43 @@
 
                 const decryptedBuffer = await decryptData(payload.data, secret);
                 let senderNick = payload.sender || "Аноним";
-                // Проверяем на админ-ник
                 senderNick = checkAdminNick(senderNick);
-                const isMyMessage = senderNick === checkAdminNick(nickInput.value);
+                const myNick = checkAdminNick(nickInput.value);
+                const isMyMessage = senderNick === myNick;
 
                 if (!decryptedBuffer) {
                     appendElement("Ошибка расшифровки", senderNick, isMyMessage);
                     return;
                 }
 
-                const msgId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                const msgId = payload.msgId || Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
                 if (payload.type === 'text') {
                     const text = new TextDecoder().decode(decryptedBuffer);
                     appendElement(text, senderNick, isMyMessage, true, msgId);
 
-                    // Сохраняем в историю
                     const history = loadChatHistory(currentRoom);
-                    history.push({
-                        id: msgId,
-                        type: 'text',
-                        text: text,
-                        sender: senderNick,
-                        timestamp: Date.now()
-                    });
-                    saveChatHistory(currentRoom, history);
+                    const exists = history.some(msg => msg.id === msgId);
+                    if (!exists) {
+                        history.push({
+                            id: msgId,
+                            type: 'text',
+                            text: text,
+                            sender: senderNick,
+                            timestamp: Date.now()
+                        });
+                        saveChatHistory(currentRoom, history);
+                    }
 
                 } else if (payload.type === 'image') {
                     const blob = new Blob([decryptedBuffer]);
-                    appendMediaElement('img', URL.createObjectURL(blob), senderNick, isMyMessage);
+                    appendMediaElement('img', URL.createObjectURL(blob), senderNick, isMyMessage, msgId);
                 } else if (payload.type === 'video') {
                     const blob = new Blob([decryptedBuffer]);
-                    appendMediaElement('video', URL.createObjectURL(blob), senderNick, isMyMessage);
+                    appendMediaElement('video', URL.createObjectURL(blob), senderNick, isMyMessage, msgId);
                 } else if (payload.type === 'audio') {
                     const blob = new Blob([decryptedBuffer], { type: 'audio/webm' });
-                    appendMediaElement('audio', URL.createObjectURL(blob), senderNick, isMyMessage);
+                    appendMediaElement('audio', URL.createObjectURL(blob), senderNick, isMyMessage, msgId);
                 } else if (payload.type === 'file') {
                     const blob = new Blob([decryptedBuffer]);
                     const link = document.createElement('a');
@@ -806,7 +821,6 @@
                     senderSpan.style.color = '#4ade80';
                     senderSpan.style.marginBottom = '4px';
 
-                    // Проверяем на админа для стилизации
                     if (senderNick === 'Anatoliy(Admin)') {
                         senderSpan.classList.add('admin-glitch');
                     }
@@ -850,12 +864,31 @@
                     wrap.appendChild(div);
                     messagesDiv.appendChild(wrap);
                     messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+                    const history = loadChatHistory(currentRoom);
+                    const exists = history.some(msg => msg.id === msgId);
+                    if (!exists) {
+                        history.push({
+                            id: msgId,
+                            type: 'file',
+                            text: payload.fileName || 'file',
+                            sender: senderNick,
+                            timestamp: Date.now()
+                        });
+                        saveChatHistory(currentRoom, history);
+                    }
                 }
             };
 
             ws.onclose = () => {
                 clearInterval(heartbeatInterval);
-                if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                if (!isManuallyDisconnected) {
+                    updateConnectionStatus('offline', 'Отключено');
+                    connectBtn.disabled = false;
+                    connectBtn.textContent = '🔄 ПОДКЛЮЧИТЬСЯ';
+                }
+
+                if (!isManuallyDisconnected && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
                     reconnectAttempts++;
                     if (reconnectTimer) {
                         clearTimeout(reconnectTimer);
@@ -865,7 +898,7 @@
                             attemptReconnect();
                         }
                     }, 3000);
-                } else {
+                } else if (!isManuallyDisconnected) {
                     appendSystemMessage('❌ Не удалось подключиться к серверу!');
                 }
             };
@@ -873,6 +906,9 @@
             ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
                 appendSystemMessage('⚠️ Ошибка соединения');
+                updateConnectionStatus('offline', 'Ошибка');
+                connectBtn.disabled = false;
+                connectBtn.textContent = '🔄 ПОДКЛЮЧИТЬСЯ';
             };
         }
 
@@ -882,9 +918,10 @@
                 reconnectTimer = null;
             }
 
-            if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS && !isManuallyDisconnected) {
                 reconnectAttempts++;
                 appendSystemMessage(`🔄 Переподключение... (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+                updateConnectionStatus('connecting', `Переподключение... ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
                 reconnectTimer = setTimeout(() => {
                     if (!ws || ws.readyState !== WebSocket.OPEN) {
                         connectToRoom();
@@ -892,14 +929,19 @@
                 }, 3000);
             } else {
                 appendSystemMessage('❌ Максимальное число попыток переподключения исчерпано');
+                updateConnectionStatus('offline', 'Отключено');
+                connectBtn.disabled = false;
+                connectBtn.textContent = '🔄 ПОДКЛЮЧИТЬСЯ';
             }
         }
 
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
                 if (!ws || ws.readyState !== WebSocket.OPEN) {
-                    reconnectAttempts = 0;
-                    connectToRoom();
+                    if (!isManuallyDisconnected) {
+                        reconnectAttempts = 0;
+                        connectToRoom();
+                    }
                 }
             }
         });
@@ -948,17 +990,38 @@
         // ===== ЧАТ ФУНКЦИИ =====
         form.onsubmit = async (e) => {
             e.preventDefault();
-            if (!input.value || !ws) return;
+            if (!input.value || !ws || ws.readyState !== WebSocket.OPEN) {
+                appendSystemMessage('⚠️ Нет подключения к серверу');
+                return;
+            }
 
             const secret = secretKeyInput.value || "default";
             const enc = new TextEncoder().encode(input.value);
             const encrypted = await encryptData(enc, secret);
+            const msgId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
+            const myNick = checkAdminNick(nickInput.value);
             ws.send(JSON.stringify({
                 sender: nickInput.value,
                 type: 'text',
-                data: encrypted
+                data: encrypted,
+                msgId: msgId
             }));
+
+            // Локальное отображение
+            appendElement(input.value, myNick, true, true, msgId);
+            const history = loadChatHistory(currentRoom);
+            const exists = history.some(msg => msg.id === msgId);
+            if (!exists) {
+                history.push({
+                    id: msgId,
+                    type: 'text',
+                    text: input.value,
+                    sender: myNick,
+                    timestamp: Date.now()
+                });
+                saveChatHistory(currentRoom, history);
+            }
             input.value = '';
         };
 
@@ -987,12 +1050,19 @@
                         const arrayBuffer = await audioBlob.arrayBuffer();
                         const secret = secretKeyInput.value || "default";
                         const encrypted = await encryptData(arrayBuffer, secret);
+                        const msgId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
+                        const myNick = checkAdminNick(nickInput.value);
                         ws.send(JSON.stringify({
                             sender: nickInput.value,
                             type: 'audio',
-                            data: encrypted
+                            data: encrypted,
+                            msgId: msgId
                         }));
+
+                        // Локальное отображение
+                        const url = URL.createObjectURL(audioBlob);
+                        appendMediaElement('audio', url, myNick, true, msgId);
                     };
 
                     mediaRecorder.start();
@@ -1016,18 +1086,119 @@
         }
 
         async function sendMediaFile(file, mediaType, fileName = '') {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                appendSystemMessage('⚠️ Нет подключения к серверу');
+                return;
+            }
+
             const secret = secretKeyInput.value || "default";
             const arrayBuffer = await file.arrayBuffer();
             const encryptedData = await encryptData(arrayBuffer, secret);
+            const msgId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
             const payload = {
                 type: mediaType,
                 fileName: fileName || file.name,
                 sender: nickInput.value,
-                data: encryptedData
+                data: encryptedData,
+                msgId: msgId
             };
 
             ws.send(JSON.stringify(payload));
+
+            // Локальное отображение
+            const myNick = checkAdminNick(nickInput.value);
+            const url = URL.createObjectURL(file);
+            let tag = 'file';
+            if (file.type.startsWith('image/')) tag = 'img';
+            else if (file.type.startsWith('video/')) tag = 'video';
+            else if (file.type.startsWith('audio/')) tag = 'audio';
+
+            if (tag !== 'file') {
+                appendMediaElement(tag, url, myNick, true, msgId);
+            } else {
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = file.name;
+                link.innerText = `📄 Скачать ${file.name}`;
+                link.className = "underline text-cyan-300 block my-1";
+
+                const wrap = document.createElement('div');
+                wrap.className = 'flex justify-end';
+                const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                const div = document.createElement('div');
+                div.id = `msg-${msgId}`;
+                div.className = 'message my-message';
+                div.dataset.msgId = msgId;
+
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+
+                const senderSpan = document.createElement('div');
+                senderSpan.className = 'sender-name';
+                senderSpan.textContent = myNick;
+                senderSpan.style.fontSize = '10px';
+                senderSpan.style.color = '#4ade80';
+                senderSpan.style.marginBottom = '4px';
+
+                if (myNick === 'Anatoliy(Admin)') {
+                    senderSpan.classList.add('admin-glitch');
+                }
+
+                const fileDiv = document.createElement('div');
+                fileDiv.appendChild(link);
+
+                const timeSpan = document.createElement('span');
+                timeSpan.className = 'timestamp';
+                timeSpan.textContent = time;
+                timeSpan.style.fontSize = '10px';
+                timeSpan.style.color = '#64748b';
+                timeSpan.style.display = 'block';
+                timeSpan.style.marginTop = '4px';
+
+                contentDiv.appendChild(senderSpan);
+                contentDiv.appendChild(fileDiv);
+                contentDiv.appendChild(timeSpan);
+
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'message-actions';
+                actionsDiv.style.display = 'none';
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'action-btn delete-btn';
+                deleteBtn.innerHTML = '🗑️ Удалить';
+                deleteBtn.onclick = function(e) {
+                    e.stopPropagation();
+                    deleteMessage(msgId);
+                };
+                actionsDiv.appendChild(deleteBtn);
+
+                div.appendChild(contentDiv);
+                div.appendChild(actionsDiv);
+
+                div.addEventListener('click', function(e) {
+                    if (e.target.closest('.action-btn')) return;
+                    toggleActions(msgId);
+                });
+
+                wrap.appendChild(div);
+                messagesDiv.appendChild(wrap);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }
+
+            const history = loadChatHistory(currentRoom);
+            const exists = history.some(msg => msg.id === msgId);
+            if (!exists) {
+                history.push({
+                    id: msgId,
+                    type: mediaType,
+                    text: fileName || file.name,
+                    sender: myNick,
+                    timestamp: Date.now()
+                });
+                saveChatHistory(currentRoom, history);
+            }
         }
 
         document.getElementById('fileInput').addEventListener('change', async (e) => {
@@ -1058,16 +1229,16 @@
             return id;
         }
 
-        function appendMediaElement(tag, url, sender, isMyMessage) {
-            const msgId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        function appendMediaElement(tag, url, sender, isMyMessage, msgId = null) {
+            const id = msgId || Date.now() + '_' + Math.random().toString(36).substr(2, 9);
             const wrap = document.createElement('div');
             wrap.className = isMyMessage ? 'flex justify-end' : 'flex justify-start';
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
             const div = document.createElement('div');
-            div.id = `msg-${msgId}`;
+            div.id = `msg-${id}`;
             div.className = `message ${isMyMessage ? 'my-message' : 'other-message'}`;
-            div.dataset.msgId = msgId;
+            div.dataset.msgId = id;
 
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
@@ -1121,16 +1292,16 @@
             deleteBtn.innerHTML = '🗑️ Удалить';
             deleteBtn.onclick = function(e) {
                 e.stopPropagation();
-                deleteMessage(msgId);
+                deleteMessage(id);
             };
-
             actionsDiv.appendChild(deleteBtn);
+
             div.appendChild(contentDiv);
             div.appendChild(actionsDiv);
 
             div.addEventListener('click', function(e) {
                 if (e.target.closest('.action-btn')) return;
-                toggleActions(msgId);
+                toggleActions(id);
             });
 
             wrap.appendChild(div);
@@ -1144,7 +1315,6 @@
             el.innerText = `[SYSTEM]: ${text}`;
             messagesDiv.appendChild(el);
 
-            // Сохраняем системные сообщения в историю
             const history = loadChatHistory(currentRoom);
             history.push({
                 id: 'sys_' + Date.now(),
@@ -1172,7 +1342,6 @@
             senderSpan.style.color = '#4ade80';
             senderSpan.style.marginBottom = '4px';
 
-            // Проверяем на админа
             if (sender === 'Anatoliy(Admin)') {
                 senderSpan.classList.add('admin-glitch');
             }
@@ -1258,11 +1427,38 @@
         });
 
         function deleteMessage(msgId) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                appendSystemMessage('⚠️ Нет подключения к серверу');
+                return;
+            }
             const payload = { type: 'delete', msgId: msgId };
             ws.send(JSON.stringify(payload));
+
+            // Локальное удаление
+            const el = document.getElementById(`msg-${msgId}`);
+            if (el) {
+                const parent = el.closest('.flex');
+                if (parent) {
+                    parent.style.transition = 'opacity 0.3s';
+                    parent.style.opacity = '0';
+                    setTimeout(() => {
+                        if (parent.parentNode) {
+                            parent.remove();
+                        }
+                    }, 300);
+                }
+            }
+            const history = loadChatHistory(currentRoom);
+            const updatedHistory = history.filter(msg => msg.id !== msgId);
+            saveChatHistory(currentRoom, updatedHistory);
         }
 
         async function editMessage(msgId, newText) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                appendSystemMessage('⚠️ Нет подключения к серверу');
+                return;
+            }
+
             const secret = secretKeyInput.value || "default";
             const encryptedData = await encryptData(new TextEncoder().encode(newText), secret);
 
@@ -1272,6 +1468,26 @@
                 data: encryptedData
             };
             ws.send(JSON.stringify(payload));
+
+            // Локальное обновление
+            const el = document.getElementById(`msg-${msgId}`);
+            if (el) {
+                const textSpan = el.querySelector('.message-text');
+                if (textSpan) {
+                    textSpan.textContent = newText;
+                    el.style.transition = 'background 0.3s';
+                    el.style.background = 'rgba(250, 204, 21, 0.2)';
+                    setTimeout(() => {
+                        el.style.background = '';
+                    }, 500);
+                }
+            }
+            const history = loadChatHistory(currentRoom);
+            const msgIndex = history.findIndex(msg => msg.id === msgId);
+            if (msgIndex > -1) {
+                history[msgIndex].text = newText;
+                saveChatHistory(currentRoom, history);
+            }
         }
 
         let currentEditId = null;
@@ -1340,7 +1556,7 @@
             }
         });
 
-        // ===== ВИДЕО-ЗВОНОК ФУНКЦИИ (без изменений) =====
+        // ===== ВИДЕО-ЗВОНОК ФУНКЦИИ =====
         function updateCallUI(active) {
             if (active) {
                 callControlsTop.classList.add('active');
@@ -1390,10 +1606,28 @@
             }
 
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({
-                    video: true,
-                    audio: true
-                });
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const hasCamera = devices.some(device => device.kind === 'videoinput');
+
+                if (hasCamera) {
+                    try {
+                        localStream = await navigator.mediaDevices.getUserMedia({
+                            video: true,
+                            audio: true
+                        });
+                    } catch (cameraError) {
+                        console.warn('Камера недоступна, используем только аудио:', cameraError);
+                        localStream = await navigator.mediaDevices.getUserMedia({
+                            audio: true
+                        });
+                        appendSystemMessage('🎥 Камера недоступна, звонок только с аудио');
+                    }
+                } else {
+                    localStream = await navigator.mediaDevices.getUserMedia({
+                        audio: true
+                    });
+                    appendSystemMessage('🎥 Камера не найдена, звонок только с аудио');
+                }
 
                 localVideo.srcObject = localStream;
 
@@ -1430,7 +1664,14 @@
 
                 isCallActive = true;
                 updateCallUI(true);
-                videoGrid.classList.remove('single');
+
+                const hasVideo = localStream.getVideoTracks().length > 0;
+                if (!hasVideo) {
+                    videoGrid.classList.add('single');
+                } else {
+                    videoGrid.classList.remove('single');
+                }
+
                 appendSystemMessage('📞 Исходящий звонок...');
                 callStatus.textContent = '⏳ Ожидание ответа...';
                 callStatus.className = 'call-status connecting';
@@ -1506,10 +1747,28 @@
             if (!isIncomingCall) return;
 
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({
-                    video: true,
-                    audio: true
-                });
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const hasCamera = devices.some(device => device.kind === 'videoinput');
+
+                if (hasCamera) {
+                    try {
+                        localStream = await navigator.mediaDevices.getUserMedia({
+                            video: true,
+                            audio: true
+                        });
+                    } catch (cameraError) {
+                        console.warn('Камера недоступна, используем только аудио:', cameraError);
+                        localStream = await navigator.mediaDevices.getUserMedia({
+                            audio: true
+                        });
+                        appendSystemMessage('🎥 Камера недоступна, звонок только с аудио');
+                    }
+                } else {
+                    localStream = await navigator.mediaDevices.getUserMedia({
+                        audio: true
+                    });
+                    appendSystemMessage('🎥 Камера не найдена, звонок только с аудио');
+                }
 
                 localVideo.srcObject = localStream;
 
@@ -1548,7 +1807,14 @@
                 isIncomingCall = false;
                 incomingCallDiv.classList.remove('active');
                 updateCallUI(true);
-                videoGrid.classList.remove('single');
+
+                const hasVideo = localStream.getVideoTracks().length > 0;
+                if (!hasVideo) {
+                    videoGrid.classList.add('single');
+                } else {
+                    videoGrid.classList.remove('single');
+                }
+
                 appendSystemMessage('📞 Звонок начат');
 
             } catch (error) {
@@ -1558,6 +1824,8 @@
                     localStream.getTracks().forEach(t => t.stop());
                     localStream = null;
                 }
+                isIncomingCall = false;
+                incomingCallDiv.classList.remove('active');
             }
         }
 
@@ -1737,7 +2005,6 @@
         }
 
         // ===== ИНИЦИАЛИЗАЦИЯ =====
-        // Проверяем ники на админа при загрузке
         nickInput.addEventListener('input', function() {
             const nick = this.value;
             if (nick.includes('159357')) {
@@ -1746,20 +2013,30 @@
             }
         });
 
-        // Загружаем избранные комнаты
         renderFavoriteRooms();
 
-        // Пытаемся восстановить сессию
+        // Автоматическое подключение при загрузке
         const restored = restoreSession();
         if (!restored) {
-            // Если сессии нет, подключаемся с дефолтными настройками
-            connectToRoom();
+            // Небольшая задержка для корректной инициализации
+            setTimeout(() => {
+                if (!initialConnectAttempted) {
+                    connectToRoom();
+                }
+            }, 500);
         }
 
-        // Обработка клавиши Escape для завершения звонка
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' && isCallActive) {
                 endCall();
+            }
+        });
+
+        // Обработка закрытия страницы
+        window.addEventListener('beforeunload', function() {
+            if (ws) {
+                isManuallyDisconnected = true;
+                ws.close();
             }
         });
 

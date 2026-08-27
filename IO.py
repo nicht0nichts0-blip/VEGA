@@ -4,6 +4,7 @@ from fastapi.websockets import WebSocket, WebSocketDisconnect
 from typing import Dict, List
 from pywebpush import webpush, WebPushException
 import json
+import asyncio
 
 app = FastAPI()
 
@@ -66,6 +67,12 @@ async def websocket_endpoint(websocket: WebSocket, room: str):
             # Обработка пинга
             if data.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
+                continue
+
+            # Для сообщений типа 'delete' и 'edit' отправляем всем, ВКЛЮЧАЯ отправителя
+            # чтобы изменения отображались у всех
+            if data.get("type") in ["delete", "edit"]:
+                await manager.broadcast_to_room(json.dumps(data), room, None)
                 continue
 
             # Отправляем сообщение всем в комнате, КРОМЕ отправителя

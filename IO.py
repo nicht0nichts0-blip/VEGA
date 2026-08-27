@@ -7,7 +7,6 @@ import json
 
 app = FastAPI()
 
-# База подписок на пуши (в памяти): {"room_name": [subscription_dict1, ...]}
 push_subscriptions: Dict[str, List[dict]] = {}
 
 
@@ -27,9 +26,12 @@ class ConnectionManager:
             if not self.rooms[room]:
                 del self.rooms[room]
 
-    async def broadcast_to_room(self, message: str, room: str):
+    async def broadcast_to_room(self, message: str, room: str, sender_ws: WebSocket = None):
         if room in self.rooms:
             for connection in self.rooms[room]:
+                # Если передан sender_ws, не отправляем сообщение обратно отправителю
+                if sender_ws and connection == sender_ws:
+                    continue
                 try:
                     await connection.send_text(message)
                 except:
@@ -66,24 +68,26 @@ async def websocket_endpoint(websocket: WebSocket, room: str):
                 await websocket.send_json({"type": "pong"})
                 continue
 
-            # Отправляем сообщение всем в комнате
-            await manager.broadcast_to_room(json.dumps(data), room)
+            # Отправляем сообщение всем в комнате, КРОМЕ отправителя
+            # Это важно для сигналов звонка, чтобы не получать свои же сигналы
+            await manager.broadcast_to_room(json.dumps(data), room, websocket)
 
-            # Отправка фоновых пушей участникам при оффлайне/закрытых вкладках
-            if room in push_subscriptions:
-                for sub in push_subscriptions[room]:
-                    try:
-                        webpush(
-                            subscription_info=sub,
-                            data=json.dumps({
-                                "title": "CYPHER // ALERT",
-                                "body": "🔒 Новое зашифрованное сообщение!"
-                            }),
-                            vapid_private_key="pVd5mLaHPjYJYA4c-L-2IaclWs_LTJux1nBZQSa9LPs",
-                            vapid_claims={"sub": "mailto:admin@cypher.mesh"}
-                        )
-                    except WebPushException:
-                        pass
+            # Отправка фоновых пушей (только для текстовых сообщений, не для сигналов звонка)
+            if data.get("type") not in ["call_signal", "ping", "pong"]:
+                if room in push_subscriptions:
+                    for sub in push_subscriptions[room]:
+                        try:
+                            webpush(
+                                subscription_info=sub,
+                                data=json.dumps({
+                                    "title": "CYPHER // ALERT",
+                                    "body": f"🔒 Новое сообщение от {data.get('sender', 'Аноним')}!"
+                                }),
+                                vapid_private_key="pVd5mLaHPjYJYA4c-L-2IaclWs_LTJux1nBZQSa9LPs",
+                                vapid_claims={"sub": "mailto:admin@cypher.mesh"}
+                            )
+                        except WebPushException:
+                            pass
     except WebSocketDisconnect:
         manager.disconnect(websocket, room)
     except Exception as e:

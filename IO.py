@@ -30,19 +30,20 @@ class ConnectionManager:
     async def broadcast_to_room(self, message: str, room: str):
         if room in self.rooms:
             for connection in self.rooms[room]:
-                await connection.send_text(message)
+                try:
+                    await connection.send_text(message)
+                except:
+                    pass
 
 
 manager = ConnectionManager()
 
 
-# Отдача Service Worker файла
 @app.get("/sw.js")
 async def get_sw():
     return FileResponse("sw.js", media_type="application/javascript")
 
 
-# Регистрация подписки на Web Push
 @app.post("/subscribe/{room}")
 async def subscribe(room: str, request: Request):
     sub_data = await request.json()
@@ -58,8 +59,15 @@ async def websocket_endpoint(websocket: WebSocket, room: str):
     await manager.connect(websocket, room)
     try:
         while True:
-            data = await websocket.receive_text()
-            await manager.broadcast_to_room(data, room)
+            data = await websocket.receive_json()
+
+            # Обработка пинга
+            if data.get("type") == "ping":
+                await websocket.send_json({"type": "pong"})
+                continue
+
+            # Отправляем сообщение всем в комнате
+            await manager.broadcast_to_room(json.dumps(data), room)
 
             # Отправка фоновых пушей участникам при оффлайне/закрытых вкладках
             if room in push_subscriptions:
@@ -71,12 +79,15 @@ async def websocket_endpoint(websocket: WebSocket, room: str):
                                 "title": "CYPHER // ALERT",
                                 "body": "🔒 Новое зашифрованное сообщение!"
                             }),
-                            vapid_private_key="ANONYMOUS",  # Для деплоя на хостинг сгенерируем уникальную пару
+                            vapid_private_key="pVd5mLaHPjYJYA4c-L-2IaclWs_LTJux1nBZQSa9LPs",
                             vapid_claims={"sub": "mailto:admin@cypher.mesh"}
                         )
                     except WebPushException:
                         pass
     except WebSocketDisconnect:
+        manager.disconnect(websocket, room)
+    except Exception as e:
+        print(f"WebSocket error: {e}")
         manager.disconnect(websocket, room)
 
 

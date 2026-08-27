@@ -10,6 +10,83 @@
         body { background-color: #030712; font-family: 'JetBrains Mono', monospace; }
         .cyber-border { border: 1px solid rgba(6, 182, 212, 0.3); }
         .cyber-card { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(12px); }
+        .message {
+            padding: 12px 15px;
+            margin: 4px 0;
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 12px;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s;
+            border: 1px solid rgba(6, 182, 212, 0.1);
+            max-width: 85%;
+        }
+
+        .my-message {
+            background: rgba(6, 182, 212, 0.15);
+            border-color: rgba(6, 182, 212, 0.3);
+        }
+
+        .other-message {
+            background: rgba(30, 41, 59, 0.6);
+            border-color: rgba(71, 85, 105, 0.3);
+        }
+
+        .message:hover {
+            border-color: rgba(6, 182, 212, 0.5);
+        }
+
+        .message-actions {
+            display: none;
+            gap: 8px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(6, 182, 212, 0.2);
+            animation: slideDown 0.2s ease-out;
+        }
+
+        .message-actions.show {
+            display: flex !important;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-5px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .action-btn {
+            padding: 4px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .edit-btn {
+            background: #0ea5e9;
+            color: white;
+        }
+
+        .edit-btn:hover {
+            background: #0284c7;
+        }
+
+        .delete-btn {
+            background: #ef4444;
+            color: white;
+        }
+
+        .delete-btn:hover {
+            background: #dc2626;
+        }
     </style>
 </head>
 <body class="text-cyan-400 h-screen flex flex-col p-3 max-w-5xl mx-auto">
@@ -39,6 +116,9 @@
     <button onclick="connectToRoom()" class="mb-3 w-full bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 text-xs py-1.5 rounded-lg transition font-bold">
         🔄 ПОДКЛЮЧИТЬСЯ К КОМНАТЕ
     </button>
+    <button id="notifyBtn" class="mb-3 w-full bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 text-xs py-1.5 rounded-lg transition font-bold">
+        Включить уведомления
+    </button>
 
     <!-- Messages Container -->
     <div id="messages" class="flex-1 overflow-y-auto space-y-3 p-4 cyber-card rounded-xl cyber-border mb-3">
@@ -50,10 +130,13 @@
         <div class="flex gap-2 text-xs">
             <label class="bg-slate-950 hover:bg-slate-900 border border-cyan-900/60 px-3 py-1 rounded cursor-pointer text-cyan-300">
                 📎 Медиа
-                <input type="file" id="fileInput" class="hidden" accept="image/*,video/*" onchange="sendFile(this)">
+                <input type="file" id="fileInput" class="hidden" accept="image/*,video/*">
             </label>
             <button id="recordBtn" onclick="toggleVoiceRecord()" class="bg-slate-950 hover:bg-slate-900 border border-cyan-900/60 px-3 py-1 rounded text-cyan-300">
                 🎙️ <span id="recordText">Голос</span>
+            </button>
+            <button id="cancelBtn" style="display: none; background: red; color: white; padding: 10px 20px; border-radius: 8px;">
+                ✕ Отменить
             </button>
         </div>
 
@@ -61,6 +144,18 @@
             <input type="text" id="messageInput" placeholder="Сообщение..." class="flex-1 bg-slate-950 border border-cyan-900/80 rounded-lg px-4 py-2 text-cyan-100 text-sm focus:outline-none focus:border-cyan-400">
             <button type="submit" class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-6 py-2 rounded-lg text-sm">SEND</button>
         </form>
+    </div>
+
+    <!-- Модальное окно для редактирования -->
+    <div id="editModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7);">
+        <div style="background: #0f172a; margin: 15% auto; padding: 25px; border-radius: 12px; max-width: 500px; width: 90%; border: 1px solid rgba(6, 182, 212, 0.3);">
+            <h3 style="color: #22d3ee; margin-top: 0;">✏️ Редактировать сообщение</h3>
+            <textarea id="editInput" rows="3" style="width: 100%; padding: 10px; border: 1px solid #1e293b; border-radius: 6px; background: #020617; color: #a5f3fc; font-size: 14px; resize: vertical; min-height: 80px; margin: 10px 0;"></textarea>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button onclick="closeEdit()" style="padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; background: #1e293b; color: #94a3b8;">Отмена</button>
+                <button onclick="saveEdit()" style="padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; background: #0ea5e9; color: white;">Сохранить</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -75,17 +170,83 @@
         let mediaRecorder;
         let audioChunks = [];
         let isRecording = false;
+        let isRecordingCanceled = false;
+        let heartbeatInterval = null;
+        let currentRoom = '';
+        let reconnectAttempts = 0;
+        let reconnectTimer = null;
+        const MAX_RECONNECT_ATTEMPTS = 5;
 
         function connectToRoom() {
             const room = roomInput.value.trim() || 'main-room';
-            if (ws) ws.close();
+
+            // Закрываем существующее соединение
+            if (ws) {
+                clearInterval(heartbeatInterval);
+                ws.close();
+            }
 
             const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${protocol}//${location.host}/ws/${room}`);
 
+            ws.onopen = () => {
+                clearInterval(heartbeatInterval);
+                if (reconnectTimer) {
+                    clearTimeout(reconnectTimer);
+                    reconnectTimer = null;
+                }
+                reconnectAttempts = 0;
+
+                // Отправляем пинг каждые 25 сек
+                heartbeatInterval = setInterval(() => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'ping' }));
+                    }
+                }, 25000);
+
+                appendSystemMessage(`Подключено к комнате: ${room}`);
+            };
+
             ws.onmessage = async (event) => {
                 const secret = secretKeyInput.value || "default";
                 const payload = JSON.parse(event.data);
+
+                if (payload.type === 'pong') return;
+
+                // Обработка удаления
+                if (payload.type === 'delete') {
+                    const el = document.getElementById(`msg-${payload.msgId}`);
+                    if (el) {
+                        const parent = el.closest('.flex');
+                        if (parent) {
+                            parent.style.transition = 'opacity 0.3s';
+                            parent.style.opacity = '0';
+                            setTimeout(() => parent.remove(), 300);
+                        }
+                    }
+                    return;
+                }
+
+                // Обработка редактирования
+                if (payload.type === 'edit') {
+                    const el = document.getElementById(`msg-${payload.msgId}`);
+                    if (el && payload.data) {
+                        const decryptedBuffer = await decryptData(payload.data, secret);
+                        if (decryptedBuffer) {
+                            const text = new TextDecoder().decode(decryptedBuffer);
+                            const textSpan = el.querySelector('.message-text');
+                            if (textSpan) {
+                                textSpan.textContent = text;
+                                el.style.transition = 'background 0.3s';
+                                el.style.background = 'rgba(250, 204, 21, 0.2)';
+                                setTimeout(() => {
+                                    el.style.background = '';
+                                }, 500);
+                            }
+                        }
+                    }
+                    return;
+                }
 
                 const decryptedBuffer = await decryptData(payload.data, secret);
                 const senderNick = payload.sender || "Аноним";
@@ -108,11 +269,128 @@
                 } else if (payload.type === 'audio') {
                     const blob = new Blob([decryptedBuffer], { type: 'audio/webm' });
                     appendMediaElement('audio', URL.createObjectURL(blob), senderNick, isMyMessage);
+                } else if (payload.type === 'file') {
+                    const blob = new Blob([decryptedBuffer]);
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = payload.fileName || 'file';
+                    link.innerText = `📄 Скачать ${payload.fileName || 'файл'}`;
+                    link.className = "underline text-cyan-300 block my-1";
+
+                    const msgId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                    const wrap = document.createElement('div');
+                    wrap.className = isMyMessage ? 'flex justify-end' : 'flex justify-start';
+                    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                    const div = document.createElement('div');
+                    div.id = `msg-${msgId}`;
+                    div.className = `message ${isMyMessage ? 'my-message' : 'other-message'}`;
+                    div.dataset.msgId = msgId;
+
+                    const contentDiv = document.createElement('div');
+                    contentDiv.className = 'message-content';
+
+                    const senderSpan = document.createElement('div');
+                    senderSpan.className = 'sender-name';
+                    senderSpan.textContent = senderNick || 'Аноним';
+                    senderSpan.style.fontSize = '10px';
+                    senderSpan.style.color = '#4ade80';
+                    senderSpan.style.marginBottom = '4px';
+
+                    const fileDiv = document.createElement('div');
+                    fileDiv.appendChild(link);
+
+                    const timeSpan = document.createElement('span');
+                    timeSpan.className = 'timestamp';
+                    timeSpan.textContent = time;
+                    timeSpan.style.fontSize = '10px';
+                    timeSpan.style.color = '#64748b';
+                    timeSpan.style.display = 'block';
+                    timeSpan.style.marginTop = '4px';
+
+                    contentDiv.appendChild(senderSpan);
+                    contentDiv.appendChild(fileDiv);
+                    contentDiv.appendChild(timeSpan);
+
+                    const actionsDiv = document.createElement('div');
+                    actionsDiv.className = 'message-actions';
+                    actionsDiv.style.display = 'none';
+
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'action-btn delete-btn';
+                    deleteBtn.innerHTML = '🗑️ Удалить';
+                    deleteBtn.onclick = function(e) {
+                        e.stopPropagation();
+                        deleteMessage(msgId);
+                    };
+                    actionsDiv.appendChild(deleteBtn);
+
+                    div.appendChild(contentDiv);
+                    div.appendChild(actionsDiv);
+
+                    div.addEventListener('click', function(e) {
+                        if (e.target.closest('.action-btn')) return;
+                        toggleActions(msgId);
+                    });
+
+                    wrap.appendChild(div);
+                    messagesDiv.appendChild(wrap);
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
                 }
             };
 
-            appendSystemMessage(`Подключено к комнате: ${room}`);
+            ws.onclose = () => {
+                clearInterval(heartbeatInterval);
+                if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                    reconnectAttempts++;
+                    if (reconnectTimer) {
+                        clearTimeout(reconnectTimer);
+                    }
+                    reconnectTimer = setTimeout(() => {
+                        if (!ws || ws.readyState !== WebSocket.OPEN) {
+                            attemptReconnect();
+                        }
+                    }, 3000);
+                } else {
+                    appendSystemMessage('❌ Не удалось подключиться к серверу!');
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                appendSystemMessage('⚠️ Ошибка соединения');
+            };
         }
+
+        function attemptReconnect() {
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+
+            if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                reconnectAttempts++;
+                appendSystemMessage(`🔄 Переподключение... (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+
+                reconnectTimer = setTimeout(() => {
+                    if (!ws || ws.readyState !== WebSocket.OPEN) {
+                        connectToRoom();
+                    }
+                }, 3000);
+            } else {
+                appendSystemMessage('❌ Максимальное число попыток переподключения исчерпано');
+            }
+        }
+
+        // Восстановление связи при возврате в браузер
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    reconnectAttempts = 0;
+                    connectToRoom();
+                }
+            }
+        });
 
         // Crypto Helpers
         async function getCryptoKey(secret) {
@@ -155,7 +433,7 @@
             }
         }
 
-        // Form submits (Без дублирования - отправляем только в WS!)
+        // Form submits
         form.onsubmit = async (e) => {
             e.preventDefault();
             if (!input.value || !ws) return;
@@ -172,35 +450,27 @@
             input.value = '';
         };
 
-        async function sendFile(fileInput) {
-            const file = fileInput.files[0];
-            if (!file || !ws) return;
-
-            const secret = secretKeyInput.value || "default";
-            const arrayBuffer = await file.arrayBuffer();
-            const encrypted = await encryptData(arrayBuffer, secret);
-
-            const fileType = file.type.startsWith('video/') ? 'video' : 'image';
-            ws.send(JSON.stringify({
-                sender: nickInput.value,
-                type: fileType,
-                data: encrypted
-            }));
-            fileInput.value = '';
-        }
-
         async function toggleVoiceRecord() {
             const recordBtn = document.getElementById('recordBtn');
             const recordText = document.getElementById('recordText');
 
             if (!isRecording) {
                 try {
+                    isRecordingCanceled = false;
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     mediaRecorder = new MediaRecorder(stream);
                     audioChunks = [];
 
                     mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                     mediaRecorder.onstop = async () => {
+                        if (isRecordingCanceled) {
+                            audioChunks = [];
+                            if (mediaRecorder && mediaRecorder.stream) {
+                                mediaRecorder.stream.getTracks().forEach(t => t.stop());
+                            }
+                            return;
+                        }
+
                         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                         const arrayBuffer = await audioBlob.arrayBuffer();
                         const secret = secretKeyInput.value || "default";
@@ -221,52 +491,133 @@
                     alert("Нужен HTTPS или localhost!");
                 }
             } else {
-                mediaRecorder.stop();
-                mediaRecorder.stream.getTracks().forEach(t => t.stop());
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    mediaRecorder.stop();
+                }
+                if (mediaRecorder && mediaRecorder.stream) {
+                    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+                }
                 isRecording = false;
                 recordText.innerText = "Голос";
                 recordBtn.classList.remove('border-red-500', 'text-red-400');
             }
         }
 
+        async function sendMediaFile(file, mediaType, fileName = '') {
+            const secret = secretKeyInput.value || "default";
+            const arrayBuffer = await file.arrayBuffer();
+            const encryptedData = await encryptData(arrayBuffer, secret);
+
+            const payload = {
+                type: mediaType,
+                fileName: fileName || file.name,
+                sender: nickInput.value,
+                data: encryptedData
+            };
+
+            ws.send(JSON.stringify(payload));
+        }
+
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            let type = 'file';
+            if (file.type.startsWith('image/')) type = 'image';
+            else if (file.type.startsWith('video/')) type = 'video';
+            else if (file.type.startsWith('audio/')) type = 'audio';
+
+            await sendMediaFile(file, type, file.name);
+            e.target.value = '';
+        });
+
         // Render Helpers
         function appendElement(text, sender, isMyMessage) {
+            const msgId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
             const wrap = document.createElement('div');
             wrap.className = isMyMessage ? 'flex justify-end' : 'flex justify-start';
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-            wrap.innerHTML = `
-                <div class="max-w-[85%] border rounded-xl p-2.5 text-sm ${isMyMessage ? 'bg-cyan-950/40 border-cyan-800/60 text-cyan-200' : 'bg-slate-900/80 border-slate-700/60 text-emerald-300'}">
-                    <div class="text-[9px] text-slate-500 mb-1 flex justify-between gap-4">
-                        <span class="font-bold text-cyan-400">${sender}</span>
-                        <span>${time}</span>
-                    </div>
-                    <div class="break-words font-sans">${escapeHtml(text)}</div>
-                </div>
-            `;
+            const msgElement = createMessageElement(msgId, text, time, sender, isMyMessage);
+            wrap.appendChild(msgElement);
+
             messagesDiv.appendChild(wrap);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            return msgId;
         }
 
         function appendMediaElement(tag, url, sender, isMyMessage) {
+            const msgId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
             const wrap = document.createElement('div');
             wrap.className = isMyMessage ? 'flex justify-end' : 'flex justify-start';
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-            let mediaHtml = '';
-            if (tag === 'img') mediaHtml = `<img src="${url}" class="max-w-xs rounded-lg border border-cyan-900/60">`;
-            else if (tag === 'video') mediaHtml = `<video src="${url}" controls class="max-w-xs rounded-lg border border-cyan-900/60"></video>`;
-            else if (tag === 'audio') mediaHtml = `<audio src="${url}" controls class="h-9 w-60"></audio>`;
+            const div = document.createElement('div');
+            div.id = `msg-${msgId}`;
+            div.className = `message ${isMyMessage ? 'my-message' : 'other-message'}`;
+            div.dataset.msgId = msgId;
 
-            wrap.innerHTML = `
-                <div class="max-w-[85%] border rounded-xl p-2 text-sm ${isMyMessage ? 'bg-cyan-950/40 border-cyan-800/60' : 'bg-slate-900/80 border-slate-700/60'}">
-                    <div class="text-[9px] text-slate-500 mb-1 flex justify-between gap-4">
-                        <span class="font-bold text-cyan-400">${sender}</span>
-                        <span>${time}</span>
-                    </div>
-                    ${mediaHtml}
-                </div>
-            `;
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            const senderSpan = document.createElement('div');
+            senderSpan.className = 'sender-name';
+            senderSpan.textContent = sender || 'Аноним';
+            senderSpan.style.fontSize = '10px';
+            senderSpan.style.color = '#4ade80';
+            senderSpan.style.marginBottom = '4px';
+
+            let mediaEl;
+            if (tag === 'img') {
+                mediaEl = document.createElement('img');
+                mediaEl.src = url;
+                mediaEl.className = 'max-w-xs rounded-lg border border-cyan-900/60';
+            } else if (tag === 'video') {
+                mediaEl = document.createElement('video');
+                mediaEl.src = url;
+                mediaEl.controls = true;
+                mediaEl.className = 'max-w-xs rounded-lg border border-cyan-900/60';
+            } else if (tag === 'audio') {
+                mediaEl = document.createElement('audio');
+                mediaEl.src = url;
+                mediaEl.controls = true;
+                mediaEl.className = 'h-9 w-60';
+            }
+
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'timestamp';
+            timeSpan.textContent = time;
+            timeSpan.style.fontSize = '10px';
+            timeSpan.style.color = '#64748b';
+            timeSpan.style.display = 'block';
+            timeSpan.style.marginTop = '4px';
+
+            contentDiv.appendChild(senderSpan);
+            contentDiv.appendChild(mediaEl);
+            contentDiv.appendChild(timeSpan);
+
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'message-actions';
+            actionsDiv.style.display = 'none';
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'action-btn delete-btn';
+            deleteBtn.innerHTML = '🗑️ Удалить';
+            deleteBtn.onclick = function(e) {
+                e.stopPropagation();
+                deleteMessage(msgId);
+            };
+
+            actionsDiv.appendChild(deleteBtn);
+            div.appendChild(contentDiv);
+            div.appendChild(actionsDiv);
+
+            div.addEventListener('click', function(e) {
+                if (e.target.closest('.action-btn')) return;
+                toggleActions(msgId);
+            });
+
+            wrap.appendChild(div);
             messagesDiv.appendChild(wrap);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
@@ -278,72 +629,216 @@
             messagesDiv.appendChild(el);
         }
 
-        function escapeHtml(text) {
-            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        function createMessageElement(msgId, text, timestamp, sender, isMyMessage) {
+            const div = document.createElement('div');
+            div.id = `msg-${msgId}`;
+            div.className = `message ${isMyMessage ? 'my-message' : 'other-message'}`;
+            div.dataset.msgId = msgId;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            const senderSpan = document.createElement('div');
+            senderSpan.className = 'sender-name';
+            senderSpan.textContent = sender || 'Аноним';
+            senderSpan.style.fontSize = '10px';
+            senderSpan.style.color = '#4ade80';
+            senderSpan.style.marginBottom = '4px';
+
+            const textSpan = document.createElement('span');
+            textSpan.className = 'message-text';
+            textSpan.textContent = text;
+
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'timestamp';
+            timeSpan.textContent = timestamp || new Date().toLocaleTimeString();
+            timeSpan.style.fontSize = '10px';
+            timeSpan.style.color = '#64748b';
+            timeSpan.style.display = 'block';
+            timeSpan.style.marginTop = '4px';
+
+            contentDiv.appendChild(senderSpan);
+            contentDiv.appendChild(textSpan);
+            contentDiv.appendChild(timeSpan);
+
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'message-actions';
+            actionsDiv.style.display = 'none';
+
+            const editBtn = document.createElement('button');
+            editBtn.className = 'action-btn edit-btn';
+            editBtn.innerHTML = '✏️ Редактировать';
+            editBtn.onclick = function(e) {
+                e.stopPropagation();
+                startEdit(msgId);
+            };
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'action-btn delete-btn';
+            deleteBtn.innerHTML = '🗑️ Удалить';
+            deleteBtn.onclick = function(e) {
+                e.stopPropagation();
+                deleteMessage(msgId);
+            };
+
+            actionsDiv.appendChild(editBtn);
+            actionsDiv.appendChild(deleteBtn);
+
+            div.appendChild(contentDiv);
+            div.appendChild(actionsDiv);
+
+            div.addEventListener('click', function(e) {
+                if (e.target.closest('.action-btn')) return;
+                toggleActions(msgId);
+            });
+
+            return div;
+        }
+
+        function toggleActions(msgId) {
+            document.querySelectorAll('.message-actions.show').forEach(el => {
+                if (el.closest('.message').dataset.msgId !== msgId) {
+                    el.classList.remove('show');
+                    el.style.display = 'none';
+                }
+            });
+
+            const msgElement = document.getElementById(`msg-${msgId}`);
+            if (!msgElement) return;
+
+            const actions = msgElement.querySelector('.message-actions');
+            if (actions.style.display === 'none' || !actions.classList.contains('show')) {
+                actions.style.display = 'flex';
+                actions.classList.add('show');
+            } else {
+                actions.style.display = 'none';
+                actions.classList.remove('show');
+            }
+        }
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.message')) {
+                document.querySelectorAll('.message-actions.show').forEach(el => {
+                    el.style.display = 'none';
+                    el.classList.remove('show');
+                });
+            }
+        });
+
+        function deleteMessage(msgId) {
+            const payload = { type: 'delete', msgId: msgId };
+            ws.send(JSON.stringify(payload));
+        }
+
+        async function editMessage(msgId, newText) {
+            const secret = secretKeyInput.value || "default";
+            const encryptedData = await encryptData(new TextEncoder().encode(newText), secret);
+
+            const payload = {
+                type: 'edit',
+                msgId: msgId,
+                data: encryptedData
+            };
+            ws.send(JSON.stringify(payload));
+        }
+
+        let currentEditId = null;
+
+        function startEdit(msgId) {
+            const msgElement = document.getElementById(`msg-${msgId}`);
+            if (!msgElement) return;
+
+            const textSpan = msgElement.querySelector('.message-text');
+            currentEditId = msgId;
+
+            document.getElementById('editInput').value = textSpan.textContent;
+            document.getElementById('editModal').style.display = 'block';
+
+            const actions = msgElement.querySelector('.message-actions');
+            if (actions) {
+                actions.style.display = 'none';
+                actions.classList.remove('show');
+            }
+        }
+
+        async function saveEdit() {
+            if (!currentEditId) return;
+
+            const newText = document.getElementById('editInput').value.trim();
+            if (newText === '') {
+                alert('Текст не может быть пустым');
+                return;
+            }
+
+            await editMessage(currentEditId, newText);
+            closeEdit();
+        }
+
+        function closeEdit() {
+            document.getElementById('editModal').style.display = 'none';
+            currentEditId = null;
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeEdit();
+            }
+        });
+
+        document.getElementById('editModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeEdit();
+            }
+        });
+
+        document.getElementById('messageInput').addEventListener('paste', async (event) => {
+            const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+
+            for (const item of items) {
+                if (item.kind === 'file') {
+                    const file = item.getAsFile();
+                    let type = 'file';
+                    if (file.type.startsWith('image/')) type = 'image';
+                    else if (file.type.startsWith('video/')) type = 'video';
+                    else if (file.type.startsWith('audio/')) type = 'audio';
+
+                    await sendMediaFile(file, type, file.name);
+                    event.preventDefault();
+                }
+            }
+        });
+
+        // Регистрация Service Worker
+        if ('serviceWorker' in navigator && 'PushManager' in window) {
+            navigator.serviceWorker.register('/sw.js')
+                .then(async (reg) => {
+                    console.log('Service Worker зарегистрирован!', reg);
+
+                    document.getElementById('notifyBtn').onclick = async () => {
+                        const permission = await Notification.requestPermission();
+                        if (permission === 'granted') {
+                            const room = roomInput.value.trim() || 'main-room';
+
+                            const sub = await reg.pushManager.subscribe({
+                                userVisibleOnly: true,
+                                applicationServerKey: 'BC_wVc9umyXQ8uPwJ7HJ0jXeT1BKAubZrLNmgd8rVzgjpVd5mLaHPjYJYA4c-L-2IaclWs_LTJux1nBZQSa9LPs'
+                            });
+
+                            await fetch(`/subscribe/${room}`, {
+                                method: 'POST',
+                                body: JSON.stringify(sub),
+                                headers: { 'Content-Type': 'application/json' }
+                            });
+
+                            document.getElementById('notifyBtn').innerText = '✅ Уведомления активны';
+                        }
+                    };
+                })
+                .catch(err => console.error('Ошибка SW:', err));
         }
 
         // Автоподключение при старте
         connectToRoom();
-// Регистрация фонового Service Worker для пушей при закрытом браузере
-if ('serviceWorker' in navigator && 'PushManager' in window) {
-    navigator.serviceWorker.register('/sw.js')
-        .then(async (reg) => {
-            console.log('Service Worker зарегистрирован!', reg);
-
-            // Запрос подписки при клике на кнопку пушей
-            document.getElementById('notifyBtn').onclick = async () => {
-                const permission = await Notification.requestPermission();
-                if (permission === 'granted') {
-                    const room = roomInput.value.trim() || 'main-room';
-
-                    // Регистрируем пуш-подписку устройства
-                    const sub = await reg.pushManager.subscribe({
-                        userVisibleOnly: true,
-                        applicationServerKey: false // На HTTPS хостинге укажем публичный VAPID ключ
-                    });
-
-                    await fetch(`/subscribe/${room}`, {
-                        method: 'POST',
-                        body: JSON.stringify(sub),
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-
-                    document.getElementById('notifyText').innerText = "Фоновые пуши активны";
-                }
-            };
-        })
-        .catch(err => console.error('Ошибка SW:', err));
-}
-    // Регистрация фонового Service Worker для пушей при закрытом браузере
-if ('serviceWorker' in navigator && 'PushManager' in window) {
-    navigator.serviceWorker.register('/sw.js')
-        .then(async (reg) => {
-            console.log('Service Worker зарегистрирован!', reg);
-
-            // Запрос подписки при клике на кнопку пушей
-            document.getElementById('notifyBtn').onclick = async () => {
-                const permission = await Notification.requestPermission();
-                if (permission === 'granted') {
-                    const room = roomInput.value.trim() || 'main-room';
-
-                    // Регистрируем пуш-подписку устройства
-                    const sub = await reg.pushManager.subscribe({
-                        userVisibleOnly: true,
-                        applicationServerKey: false // На HTTPS хостинге укажем публичный VAPID ключ
-                    });
-
-                    await fetch(`/subscribe/${room}`, {
-                        method: 'POST',
-                        body: JSON.stringify(sub),
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-
-                    document.getElementById('notifyText').innerText = "Фоновые пуши активны";
-                }
-            };
-        })
-        .catch(err => console.error('Ошибка SW:', err));
-}
     </script>
 </body>
 </html>

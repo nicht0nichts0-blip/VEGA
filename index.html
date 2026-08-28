@@ -516,10 +516,14 @@
         function saveChatHistory(room, messages) {
             try {
                 const history = JSON.parse(localStorage.getItem(STORAGE_KEYS.CHAT_HISTORY) || '{}');
-                if (messages.length > 500) {
-                    messages = messages.slice(-500);
+                // Фильтруем системные сообщения
+                const filteredMessages = messages.filter(msg => msg.type !== 'system');
+                if (filteredMessages.length > 500) {
+                    const sliced = filteredMessages.slice(-500);
+                    history[room] = sliced;
+                } else {
+                    history[room] = filteredMessages;
                 }
-                history[room] = messages;
                 localStorage.setItem(STORAGE_KEYS.CHAT_HISTORY, JSON.stringify(history));
             } catch (e) {
                 console.error('Ошибка сохранения истории:', e);
@@ -538,14 +542,14 @@
 
         function displayChatHistory(room) {
             const messages = loadChatHistory(room);
+            // Очищаем сообщения, но оставляем системное
             messagesDiv.innerHTML = '<div class="text-xs text-slate-600 border-b border-slate-900 pb-2">[SYSTEM]: История чата</div>';
 
             messages.forEach(msg => {
-                const isMyMessage = msg.sender === checkAdminNick(nickInput.value);
+                const myNick = checkAdminNick(nickInput.value);
+                const isMyMessage = msg.sender === myNick;
                 if (msg.type === 'text') {
                     appendElement(msg.text, msg.sender, isMyMessage, false, msg.id);
-                } else if (msg.type === 'system') {
-                    appendSystemMessage(msg.text);
                 }
             });
 
@@ -1314,16 +1318,9 @@
             el.className = 'text-xs text-slate-600 border-b border-slate-900 pb-1';
             el.innerText = `[SYSTEM]: ${text}`;
             messagesDiv.appendChild(el);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
-            const history = loadChatHistory(currentRoom);
-            history.push({
-                id: 'sys_' + Date.now(),
-                type: 'system',
-                text: text,
-                sender: 'System',
-                timestamp: Date.now()
-            });
-            saveChatHistory(currentRoom, history);
+            // НЕ СОХРАНЯЕМ СИСТЕМНЫЕ СООБЩЕНИЯ В ИСТОРИЮ
         }
 
         function createMessageElement(msgId, text, timestamp, sender, isMyMessage) {
@@ -2015,10 +2012,9 @@
 
         renderFavoriteRooms();
 
-        // Автоматическое подключение при загрузке
+        // Автоматическое подключение при загрузке (1 раз)
         const restored = restoreSession();
         if (!restored) {
-            // Небольшая задержка для корректной инициализации
             setTimeout(() => {
                 if (!initialConnectAttempted) {
                     connectToRoom();
@@ -2032,7 +2028,6 @@
             }
         });
 
-        // Обработка закрытия страницы
         window.addEventListener('beforeunload', function() {
             if (ws) {
                 isManuallyDisconnected = true;

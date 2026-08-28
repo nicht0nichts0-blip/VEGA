@@ -1582,6 +1582,11 @@
                 callStatus.textContent = '📞 В звонке';
                 callStatus.className = 'call-status';
                 pendingCandidates = [];
+                // Очищаем видео
+                remoteVideo.srcObject = null;
+                if (localVideo.srcObject && localVideo.srcObject !== screenStream) {
+                    localVideo.srcObject = null;
+                }
             }
         }
 
@@ -1593,114 +1598,9 @@
             callTimer.textContent = `${mins}:${secs}`;
         }
 
-        async function startCall() {
-            if (isCallActive) {
-                appendSystemMessage('⚠️ Звонок уже активен');
-                return;
-            }
-
-            if (!ws || ws.readyState !== WebSocket.OPEN) {
-                appendSystemMessage('⚠️ Сначала подключитесь к комнате');
-                return;
-            }
-
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const hasCamera = devices.some(device => device.kind === 'videoinput');
-
-                if (hasCamera) {
-                    try {
-                        localStream = await navigator.mediaDevices.getUserMedia({
-                            video: true,
-                            audio: true
-                        });
-                    } catch (cameraError) {
-                        console.warn('Камера недоступна, используем только аудио:', cameraError);
-                        localStream = await navigator.mediaDevices.getUserMedia({
-                            audio: true
-                        });
-                        appendSystemMessage('🎥 Камера недоступна, звонок только с аудио');
-                    }
-                } else {
-                    localStream = await navigator.mediaDevices.getUserMedia({
-                        audio: true
-                    });
-                    appendSystemMessage('🎥 Камера не найдена, звонок только с аудио');
-                }
-
-                localVideo.srcObject = localStream;
-
-                peerConnection = new RTCPeerConnection(configuration);
-
-                localStream.getTracks().forEach(track => {
-                    peerConnection.addTrack(track, localStream);
-                });
-
-                remoteStream = new MediaStream();
-                remoteVideo.srcObject = remoteStream;
-
-                peerConnection.ontrack = (event) => {
-                    remoteStream.addTrack(event.track);
-                };
-
-                peerConnection.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        sendCallSignal({
-                            type: 'ice',
-                            candidate: event.candidate
-                        });
-                    }
-                };
-
-                peerConnection.oniceconnectionstatechange = () => {
-                    if (peerConnection.iceConnectionState === 'connected') {
-                        callStatus.textContent = '📞 В звонке';
-                        callStatus.className = 'call-status';
-                        if (!callTimerInterval) {
-                            callStartTime = Date.now();
-                            callTimerInterval = setInterval(updateCallTimer, 1000);
-                        }
-                    } else if (peerConnection.iceConnectionState === 'disconnected' || 
-                               peerConnection.iceConnectionState === 'failed') {
-                        appendSystemMessage('⚠️ Соединение разорвано');
-                        endCall();
-                    }
-                };
-
-                const offer = await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(offer);
-
-                sendCallSignal({
-                    type: 'offer',
-                    sdp: offer
-                });
-
-                isCallActive = true;
-                updateCallUI(true);
-
-                const hasVideo = localStream.getVideoTracks().length > 0;
-                if (!hasVideo) {
-                    videoGrid.classList.add('single');
-                } else {
-                    videoGrid.classList.remove('single');
-                }
-
-                appendSystemMessage('📞 Исходящий звонок...');
-                callStatus.textContent = '⏳ Ожидание ответа...';
-                callStatus.className = 'call-status connecting';
-
-            } catch (error) {
-                console.error('Ошибка при начале звонка:', error);
-                appendSystemMessage('⚠️ Не удалось начать звонок: ' + error.message);
-                if (localStream) {
-                    localStream.getTracks().forEach(t => t.stop());
-                    localStream = null;
-                }
-            }
-        }
-
         function sendCallSignal(signal) {
             if (ws && ws.readyState === WebSocket.OPEN) {
+                console.log('Отправка сигнала:', signal.type);
                 ws.send(JSON.stringify({
                     type: 'call_signal',
                     signal: signal,
@@ -1714,25 +1614,30 @@
             const signal = payload.signal;
             const sender = payload.sender;
 
-            if (sender === nickInput.value) return;
+            if (sender === nickInput.value) {
+                console.log('Пропускаем свой сигнал');
+                return;
+            }
 
             console.log('Получен сигнал:', signal.type, 'от', sender);
 
             switch (signal.type) {
                 case 'offer':
                     if (!isCallActive && !isIncomingCall) {
+                        console.log('Получен offer от', sender);
                         isIncomingCall = true;
                         callTarget = sender;
                         callerNameSpan.textContent = sender;
                         incomingCallDiv.classList.add('active');
                         appendSystemMessage(`📞 Входящий звонок от ${sender}`);
-                        
-                        // Автоматически сохраняем offer для ответа
+
+                        // Создаем peerConnection для ответа
                         if (!peerConnection) {
                             peerConnection = new RTCPeerConnection(configuration);
                             
                             peerConnection.onicecandidate = (event) => {
                                 if (event.candidate) {
+                                    console.log('Отправка ICE кандидата');
                                     sendCallSignal({
                                         type: 'ice',
                                         candidate: event.candidate
@@ -1740,29 +1645,56 @@
                                 }
                             };
                             
-                            // Создаем remote stream для отображения видео собеседника
+                            peerConnection.oniceconnectionstatechange = () => {
+                                console.log('ICE состояние:', peerConnection.iceConnectionState);
+                                if (peerConnection.iceConnectionState === 'connected') {
+                                    callStatus.textContent = '📞 В звонке';
+                                    callStatus.className = 'call-status';
+                                    if (!callTimerInterval) {
+                                        callStartTime = Date.now();
+                                        callTimerInterval = setInterval(updateCallTimer, 1000);
+                                    }
+                                } else if (peerConnection.iceConnectionState === 'disconnected' ||
+                                           peerConnection.iceConnectionState === 'failed') {
+                                    appendSystemMessage('⚠️ Соединение разорвано');
+                                    endCall();
+                                }
+                            };
+
                             remoteStream = new MediaStream();
                             remoteVideo.srcObject = remoteStream;
-                            
+
                             peerConnection.ontrack = (event) => {
+                                console.log('Получен трек от собеседника');
                                 remoteStream.addTrack(event.track);
                             };
-                            
+                        }
+
+                        try {
                             peerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+                            console.log('Remote description установлен');
+                        } catch (e) {
+                            console.error('Ошибка установки remote description:', e);
                         }
                     }
                     break;
 
                 case 'answer':
+                    console.log('Получен answer от', sender);
                     if (peerConnection && isCallActive) {
-                        peerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-                        appendSystemMessage('✅ Звонок принят!');
-                        incomingCallDiv.classList.remove('active');
-                        callStatus.textContent = '📞 В звонке';
-                        callStatus.className = 'call-status';
-                        if (!callTimerInterval) {
-                            callStartTime = Date.now();
-                            callTimerInterval = setInterval(updateCallTimer, 1000);
+                        try {
+                            peerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+                            console.log('Remote description (answer) установлен');
+                            appendSystemMessage('✅ Звонок принят!');
+                            incomingCallDiv.classList.remove('active');
+                            callStatus.textContent = '📞 В звонке';
+                            callStatus.className = 'call-status';
+                            if (!callTimerInterval) {
+                                callStartTime = Date.now();
+                                callTimerInterval = setInterval(updateCallTimer, 1000);
+                            }
+                        } catch (e) {
+                            console.error('Ошибка установки answer:', e);
                         }
                     }
                     break;
@@ -1770,10 +1702,13 @@
                 case 'ice':
                     if (peerConnection) {
                         try {
+                            console.log('Добавление ICE кандидата');
                             peerConnection.addIceCandidate(new RTCIceCandidate(signal.candidate));
                         } catch (e) {
                             console.warn('Ошибка добавления ICE кандидата:', e);
                         }
+                    } else {
+                        console.warn('peerConnection не существует для ICE кандидата');
                     }
                     break;
 
@@ -1785,9 +1720,13 @@
         }
 
         async function answerCall() {
-            if (!isIncomingCall) return;
+            if (!isIncomingCall) {
+                console.log('Нет входящего звонка');
+                return;
+            }
 
             try {
+                console.log('Ответ на звонок...');
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const hasCamera = devices.some(device => device.kind === 'videoinput');
 
@@ -1815,20 +1754,38 @@
 
                 if (!peerConnection) {
                     peerConnection = new RTCPeerConnection(configuration);
-                    
+
                     peerConnection.onicecandidate = (event) => {
                         if (event.candidate) {
+                            console.log('Отправка ICE кандидата (answer)');
                             sendCallSignal({
                                 type: 'ice',
                                 candidate: event.candidate
                             });
                         }
                     };
-                    
+
+                    peerConnection.oniceconnectionstatechange = () => {
+                        console.log('ICE состояние (answer):', peerConnection.iceConnectionState);
+                        if (peerConnection.iceConnectionState === 'connected') {
+                            callStatus.textContent = '📞 В звонке';
+                            callStatus.className = 'call-status';
+                            if (!callTimerInterval) {
+                                callStartTime = Date.now();
+                                callTimerInterval = setInterval(updateCallTimer, 1000);
+                            }
+                        } else if (peerConnection.iceConnectionState === 'disconnected' ||
+                                   peerConnection.iceConnectionState === 'failed') {
+                            appendSystemMessage('⚠️ Соединение разорвано');
+                            endCall();
+                        }
+                    };
+
                     remoteStream = new MediaStream();
                     remoteVideo.srcObject = remoteStream;
-                    
+
                     peerConnection.ontrack = (event) => {
+                        console.log('Получен трек от собеседника (answer)');
                         remoteStream.addTrack(event.track);
                     };
                 }
@@ -1839,6 +1796,7 @@
 
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
+                console.log('Local description (answer) установлен');
 
                 sendCallSignal({
                     type: 'answer',
@@ -1875,6 +1833,10 @@
                 }
                 isIncomingCall = false;
                 incomingCallDiv.classList.remove('active');
+                if (peerConnection) {
+                    peerConnection.close();
+                    peerConnection = null;
+                }
             }
         }
 
@@ -2086,14 +2048,14 @@
         // Исправленная проверка ников
         nickInput.addEventListener('input', function() {
             let nick = this.value;
-            
+
             // Проверка на админа
             if (nick.includes('159357')) {
                 this.value = 'Anatoliy(Admin)';
                 appendSystemMessage('👑 Активирован режим администратора!');
                 return;
             }
-            
+
             // Проверка на VERA
             if (nick.includes('777')) {
                 this.value = '(мяу) ღ💔𝓥𝓔𝓡𝓐💔ღ (мяу)';

@@ -76,7 +76,11 @@
         .admin-glitch::before {
             content: '👑 ';
         }
-
+        .VERA-glitch {
+            animation: glitch 0.5s infinite;
+            color: #ff00ff;
+            font-weight: bold;
+        }
         .call-container {
             position: fixed;
             top: 0;
@@ -478,6 +482,7 @@
         let callTimerInterval = null;
         let callStartTime = null;
         let currentRoom = '';
+        let pendingCandidates = [];
 
         const callContainer = document.getElementById('callContainer');
         const localVideo = document.getElementById('localVideo');
@@ -506,8 +511,16 @@
 
         // ===== СЕКРЕТНЫЙ АДМИН-НИК =====
         function checkAdminNick(nick) {
-            if (nick.includes('159357')) {
+            if (nick && nick.includes('159357')) {
                 return 'Anatoliy(Admin)';
+            }
+            return nick;
+        }
+
+        // ===== СЕКРЕТНЫЙ ВЕРА-НИК =====
+        function checkVeraNick(nick) {
+            if (nick && nick.includes('777')) {
+                return '(мяу) ღ💔𝓥𝓔𝓡𝓐💔ღ (мяу)';
             }
             return nick;
         }
@@ -516,7 +529,6 @@
         function saveChatHistory(room, messages) {
             try {
                 const history = JSON.parse(localStorage.getItem(STORAGE_KEYS.CHAT_HISTORY) || '{}');
-                // Фильтруем системные сообщения
                 const filteredMessages = messages.filter(msg => msg.type !== 'system');
                 if (filteredMessages.length > 500) {
                     const sliced = filteredMessages.slice(-500);
@@ -542,11 +554,10 @@
 
         function displayChatHistory(room) {
             const messages = loadChatHistory(room);
-            // Очищаем сообщения, но оставляем системное
             messagesDiv.innerHTML = '<div class="text-xs text-slate-600 border-b border-slate-900 pb-2">[SYSTEM]: История чата</div>';
 
             messages.forEach(msg => {
-                const myNick = checkAdminNick(nickInput.value);
+                const myNick = checkAdminNick(checkVeraNick(nickInput.value));
                 const isMyMessage = msg.sender === myNick;
                 if (msg.type === 'text') {
                     appendElement(msg.text, msg.sender, isMyMessage, false, msg.id);
@@ -761,8 +772,8 @@
 
                 const decryptedBuffer = await decryptData(payload.data, secret);
                 let senderNick = payload.sender || "Аноним";
-                senderNick = checkAdminNick(senderNick);
-                const myNick = checkAdminNick(nickInput.value);
+                senderNick = checkAdminNick(checkVeraNick(senderNick));
+                const myNick = checkAdminNick(checkVeraNick(nickInput.value));
                 const isMyMessage = senderNick === myNick;
 
                 if (!decryptedBuffer) {
@@ -798,40 +809,38 @@
                 } else if (payload.type === 'audio') {
                     const blob = new Blob([decryptedBuffer], { type: 'audio/webm' });
                     appendMediaElement('audio', URL.createObjectURL(blob), senderNick, isMyMessage, msgId);
-                } else if (payload.type === 'file') {
+                } else {
+                    if (payload.type !== 'file') {
+                        return;
+                    }
                     const blob = new Blob([decryptedBuffer]);
                     const link = document.createElement('a');
                     link.href = URL.createObjectURL(blob);
                     link.download = payload.fileName || 'file';
                     link.innerText = `📄 Скачать ${payload.fileName || 'файл'}`;
                     link.className = "underline text-cyan-300 block my-1";
-
                     const wrap = document.createElement('div');
                     wrap.className = isMyMessage ? 'flex justify-end' : 'flex justify-start';
-                    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
+                    const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
                     const div = document.createElement('div');
                     div.id = `msg-${msgId}`;
                     div.className = `message ${isMyMessage ? 'my-message' : 'other-message'}`;
                     div.dataset.msgId = msgId;
-
                     const contentDiv = document.createElement('div');
                     contentDiv.className = 'message-content';
-
                     const senderSpan = document.createElement('div');
                     senderSpan.className = 'sender-name';
                     senderSpan.textContent = senderNick || 'Аноним';
                     senderSpan.style.fontSize = '10px';
                     senderSpan.style.color = '#4ade80';
                     senderSpan.style.marginBottom = '4px';
-
                     if (senderNick === 'Anatoliy(Admin)') {
                         senderSpan.classList.add('admin-glitch');
+                    } else if (senderNick === '(мяу) ღ💔𝓥𝓔𝓡𝓐💔ღ (мяу)') {
+                        senderSpan.classList.add('VERA-glitch');
                     }
-
                     const fileDiv = document.createElement('div');
                     fileDiv.appendChild(link);
-
                     const timeSpan = document.createElement('span');
                     timeSpan.className = 'timestamp';
                     timeSpan.textContent = time;
@@ -839,36 +848,29 @@
                     timeSpan.style.color = '#64748b';
                     timeSpan.style.display = 'block';
                     timeSpan.style.marginTop = '4px';
-
                     contentDiv.appendChild(senderSpan);
                     contentDiv.appendChild(fileDiv);
                     contentDiv.appendChild(timeSpan);
-
                     const actionsDiv = document.createElement('div');
                     actionsDiv.className = 'message-actions';
                     actionsDiv.style.display = 'none';
-
                     const deleteBtn = document.createElement('button');
                     deleteBtn.className = 'action-btn delete-btn';
                     deleteBtn.innerHTML = '🗑️ Удалить';
-                    deleteBtn.onclick = function(e) {
+                    deleteBtn.onclick = function (e) {
                         e.stopPropagation();
                         deleteMessage(msgId);
                     };
                     actionsDiv.appendChild(deleteBtn);
-
                     div.appendChild(contentDiv);
                     div.appendChild(actionsDiv);
-
-                    div.addEventListener('click', function(e) {
+                    div.addEventListener('click', function (e) {
                         if (e.target.closest('.action-btn')) return;
                         toggleActions(msgId);
                     });
-
                     wrap.appendChild(div);
                     messagesDiv.appendChild(wrap);
                     messagesDiv.scrollTop = messagesDiv.scrollHeight;
-
                     const history = loadChatHistory(currentRoom);
                     const exists = history.some(msg => msg.id === msgId);
                     if (!exists) {
@@ -1004,7 +1006,7 @@
             const encrypted = await encryptData(enc, secret);
             const msgId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
-            const myNick = checkAdminNick(nickInput.value);
+            const myNick = checkAdminNick(checkVeraNick(nickInput.value));
             ws.send(JSON.stringify({
                 sender: nickInput.value,
                 type: 'text',
@@ -1012,7 +1014,6 @@
                 msgId: msgId
             }));
 
-            // Локальное отображение
             appendElement(input.value, myNick, true, true, msgId);
             const history = loadChatHistory(currentRoom);
             const exists = history.some(msg => msg.id === msgId);
@@ -1056,7 +1057,7 @@
                         const encrypted = await encryptData(arrayBuffer, secret);
                         const msgId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
-                        const myNick = checkAdminNick(nickInput.value);
+                        const myNick = checkAdminNick(checkVeraNick(nickInput.value));
                         ws.send(JSON.stringify({
                             sender: nickInput.value,
                             type: 'audio',
@@ -1064,7 +1065,6 @@
                             msgId: msgId
                         }));
 
-                        // Локальное отображение
                         const url = URL.createObjectURL(audioBlob);
                         appendMediaElement('audio', url, myNick, true, msgId);
                     };
@@ -1110,8 +1110,7 @@
 
             ws.send(JSON.stringify(payload));
 
-            // Локальное отображение
-            const myNick = checkAdminNick(nickInput.value);
+            const myNick = checkAdminNick(checkVeraNick(nickInput.value));
             const url = URL.createObjectURL(file);
             let tag = 'file';
             if (file.type.startsWith('image/')) tag = 'img';
@@ -1148,6 +1147,8 @@
 
                 if (myNick === 'Anatoliy(Admin)') {
                     senderSpan.classList.add('admin-glitch');
+                } else if (myNick === '(мяу) ღ💔𝓥𝓔𝓡𝓐💔ღ (мяу)') {
+                    senderSpan.classList.add('VERA-glitch');
                 }
 
                 const fileDiv = document.createElement('div');
@@ -1256,6 +1257,8 @@
 
             if (sender === 'Anatoliy(Admin)') {
                 senderSpan.classList.add('admin-glitch');
+            } else if (sender === '(мяу) ღ💔𝓥𝓔𝓡𝓐💔ღ (мяу)') {
+                senderSpan.classList.add('VERA-glitch');
             }
 
             let mediaEl;
@@ -1319,8 +1322,6 @@
             el.innerText = `[SYSTEM]: ${text}`;
             messagesDiv.appendChild(el);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
-
-            // НЕ СОХРАНЯЕМ СИСТЕМНЫЕ СООБЩЕНИЯ В ИСТОРИЮ
         }
 
         function createMessageElement(msgId, text, timestamp, sender, isMyMessage) {
@@ -1341,6 +1342,8 @@
 
             if (sender === 'Anatoliy(Admin)') {
                 senderSpan.classList.add('admin-glitch');
+            } else if (sender === '(мяу) ღ💔𝓥𝓔𝓡𝓐💔ღ (мяу)') {
+                senderSpan.classList.add('VERA-glitch');
             }
 
             const textSpan = document.createElement('span');
@@ -1431,7 +1434,6 @@
             const payload = { type: 'delete', msgId: msgId };
             ws.send(JSON.stringify(payload));
 
-            // Локальное удаление
             const el = document.getElementById(`msg-${msgId}`);
             if (el) {
                 const parent = el.closest('.flex');
@@ -1466,7 +1468,6 @@
             };
             ws.send(JSON.stringify(payload));
 
-            // Локальное обновление
             const el = document.getElementById(`msg-${msgId}`);
             if (el) {
                 const textSpan = el.querySelector('.message-text');
@@ -1580,6 +1581,7 @@
                 }
                 callStatus.textContent = '📞 В звонке';
                 callStatus.className = 'call-status';
+                pendingCandidates = [];
             }
         }
 
@@ -1634,11 +1636,10 @@
                     peerConnection.addTrack(track, localStream);
                 });
 
+                remoteStream = new MediaStream();
+                remoteVideo.srcObject = remoteStream;
+
                 peerConnection.ontrack = (event) => {
-                    if (!remoteStream) {
-                        remoteStream = new MediaStream();
-                        remoteVideo.srcObject = remoteStream;
-                    }
                     remoteStream.addTrack(event.track);
                 };
 
@@ -1648,6 +1649,21 @@
                             type: 'ice',
                             candidate: event.candidate
                         });
+                    }
+                };
+
+                peerConnection.oniceconnectionstatechange = () => {
+                    if (peerConnection.iceConnectionState === 'connected') {
+                        callStatus.textContent = '📞 В звонке';
+                        callStatus.className = 'call-status';
+                        if (!callTimerInterval) {
+                            callStartTime = Date.now();
+                            callTimerInterval = setInterval(updateCallTimer, 1000);
+                        }
+                    } else if (peerConnection.iceConnectionState === 'disconnected' || 
+                               peerConnection.iceConnectionState === 'failed') {
+                        appendSystemMessage('⚠️ Соединение разорвано');
+                        endCall();
                     }
                 };
 
@@ -1710,6 +1726,30 @@
                         callerNameSpan.textContent = sender;
                         incomingCallDiv.classList.add('active');
                         appendSystemMessage(`📞 Входящий звонок от ${sender}`);
+                        
+                        // Автоматически сохраняем offer для ответа
+                        if (!peerConnection) {
+                            peerConnection = new RTCPeerConnection(configuration);
+                            
+                            peerConnection.onicecandidate = (event) => {
+                                if (event.candidate) {
+                                    sendCallSignal({
+                                        type: 'ice',
+                                        candidate: event.candidate
+                                    });
+                                }
+                            };
+                            
+                            // Создаем remote stream для отображения видео собеседника
+                            remoteStream = new MediaStream();
+                            remoteVideo.srcObject = remoteStream;
+                            
+                            peerConnection.ontrack = (event) => {
+                                remoteStream.addTrack(event.track);
+                            };
+                            
+                            peerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+                        }
                     }
                     break;
 
@@ -1729,7 +1769,11 @@
 
                 case 'ice':
                     if (peerConnection) {
-                        peerConnection.addIceCandidate(new RTCIceCandidate(signal.candidate));
+                        try {
+                            peerConnection.addIceCandidate(new RTCIceCandidate(signal.candidate));
+                        } catch (e) {
+                            console.warn('Ошибка добавления ICE кандидата:', e);
+                        }
                     }
                     break;
 
@@ -1769,28 +1813,29 @@
 
                 localVideo.srcObject = localStream;
 
-                peerConnection = new RTCPeerConnection(configuration);
+                if (!peerConnection) {
+                    peerConnection = new RTCPeerConnection(configuration);
+                    
+                    peerConnection.onicecandidate = (event) => {
+                        if (event.candidate) {
+                            sendCallSignal({
+                                type: 'ice',
+                                candidate: event.candidate
+                            });
+                        }
+                    };
+                    
+                    remoteStream = new MediaStream();
+                    remoteVideo.srcObject = remoteStream;
+                    
+                    peerConnection.ontrack = (event) => {
+                        remoteStream.addTrack(event.track);
+                    };
+                }
 
                 localStream.getTracks().forEach(track => {
                     peerConnection.addTrack(track, localStream);
                 });
-
-                peerConnection.ontrack = (event) => {
-                    if (!remoteStream) {
-                        remoteStream = new MediaStream();
-                        remoteVideo.srcObject = remoteStream;
-                    }
-                    remoteStream.addTrack(event.track);
-                };
-
-                peerConnection.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        sendCallSignal({
-                            type: 'ice',
-                            candidate: event.candidate
-                        });
-                    }
-                };
 
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
@@ -1812,6 +1857,13 @@
                     videoGrid.classList.remove('single');
                 }
 
+                callStatus.textContent = '📞 В звонке';
+                callStatus.className = 'call-status';
+                if (!callTimerInterval) {
+                    callStartTime = Date.now();
+                    callTimerInterval = setInterval(updateCallTimer, 1000);
+                }
+
                 appendSystemMessage('📞 Звонок начат');
 
             } catch (error) {
@@ -1829,6 +1881,10 @@
         function rejectCall() {
             isIncomingCall = false;
             incomingCallDiv.classList.remove('active');
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
             appendSystemMessage('❌ Звонок отклонен');
         }
 
@@ -1874,6 +1930,7 @@
             videoBtn.classList.remove('off');
             videoBtn.textContent = '📹';
 
+            pendingCandidates = [];
             appendSystemMessage('📞 Звонок завершен');
         }
 
@@ -1972,41 +2029,76 @@
             }
         }
 
-        // ===== SERVICE WORKER =====
+        // ===== SERVICE WORKER ДЛЯ УВЕДОМЛЕНИЙ =====
         if ('serviceWorker' in navigator && 'PushManager' in window) {
             navigator.serviceWorker.register('/sw.js')
                 .then(async (reg) => {
                     console.log('Service Worker зарегистрирован!', reg);
 
+                    // Проверяем, есть ли уже подписка
+                    const existingSub = await reg.pushManager.getSubscription();
+                    if (existingSub) {
+                        document.getElementById('notifyBtn').innerText = '✅ Уведомления активны';
+                    }
+
                     document.getElementById('notifyBtn').onclick = async () => {
                         const permission = await Notification.requestPermission();
                         if (permission === 'granted') {
-                            const room = roomInput.value.trim() || 'main-room';
+                            try {
+                                const room = roomInput.value.trim() || 'main-room';
 
-                            const sub = await reg.pushManager.subscribe({
-                                userVisibleOnly: true,
-                                applicationServerKey: 'BC_wVc9umyXQ8uPwJ7HJ0jXeT1BKAubZrLNmgd8rVzgjpVd5mLaHPjYJYA4c-L-2IaclWs_LTJux1nBZQSa9LPs'
-                            });
+                                let sub = await reg.pushManager.getSubscription();
+                                if (!sub) {
+                                    const vapidKey = 'BC_wVc9umyXQ8uPwJ7HJ0jXeT1BKAubZrLNmgd8rVzgjpVd5mLaHPjYJYA4c-L-2IaclWs_LTJux1nBZQSa9LPs';
+                                    sub = await reg.pushManager.subscribe({
+                                        userVisibleOnly: true,
+                                        applicationServerKey: vapidKey
+                                    });
+                                }
 
-                            await fetch(`/subscribe/${room}`, {
-                                method: 'POST',
-                                body: JSON.stringify(sub),
-                                headers: { 'Content-Type': 'application/json' }
-                            });
+                                const response = await fetch(`/subscribe/${room}`, {
+                                    method: 'POST',
+                                    body: JSON.stringify(sub),
+                                    headers: { 'Content-Type': 'application/json' }
+                                });
 
-                            document.getElementById('notifyBtn').innerText = '✅ Уведомления активны';
+                                if (response.ok) {
+                                    document.getElementById('notifyBtn').innerText = '✅ Уведомления активны';
+                                    appendSystemMessage('🔔 Уведомления включены');
+                                } else {
+                                    appendSystemMessage('⚠️ Ошибка при включении уведомлений');
+                                }
+                            } catch (error) {
+                                console.error('Ошибка подписки:', error);
+                                appendSystemMessage('⚠️ Ошибка при включении уведомлений');
+                            }
+                        } else {
+                            appendSystemMessage('⚠️ Разрешение на уведомления не получено');
                         }
                     };
                 })
                 .catch(err => console.error('Ошибка SW:', err));
+        } else {
+            document.getElementById('notifyBtn').innerText = '❌ Уведомления не поддерживаются';
         }
 
         // ===== ИНИЦИАЛИЗАЦИЯ =====
+        // Исправленная проверка ников
         nickInput.addEventListener('input', function() {
-            const nick = this.value;
+            let nick = this.value;
+            
+            // Проверка на админа
             if (nick.includes('159357')) {
                 this.value = 'Anatoliy(Admin)';
                 appendSystemMessage('👑 Активирован режим администратора!');
+                return;
+            }
+            
+            // Проверка на VERA
+            if (nick.includes('777')) {
+                this.value = '(мяу) ღ💔𝓥𝓔𝓡𝓐💔ღ (мяу)';
+                appendSystemMessage('🕷️ ЭЛИТНЫЙ НИК активирован!');
+                return;
             }
         });
 
@@ -2033,11 +2125,15 @@
                 isManuallyDisconnected = true;
                 ws.close();
             }
+            if (isCallActive) {
+                endCall();
+            }
         });
 
         console.log('🔐 VEGA MESH CHAT загружен!');
         console.log('📞 Для звонка нажмите кнопку "НАЧАТЬ ЗВОНОК"');
         console.log('👑 Секретный код для админа: 159357');
+        console.log('🕷️ Секретный код для VERA: 777');
     </script>
 </body>
 </html>

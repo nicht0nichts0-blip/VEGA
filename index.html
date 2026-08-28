@@ -81,6 +81,14 @@
             color: #ff00ff;
             font-weight: bold;
         }
+        .MILA-glitch {
+            animation: glitch 0.4s infinite;
+            color: #ff69b4;
+            font-weight: bold;
+        }
+        .MILA-glitch::before {
+            content: '🌸 ';
+        }
         .call-container {
             position: fixed;
             top: 0;
@@ -525,6 +533,32 @@
             return nick;
         }
 
+        // ===== СЕКРЕТНЫЙ МИЛА-НИК (код 2712) =====
+        function checkMilaNick(nick) {
+            if (nick && nick.includes('2712')) {
+                return '꧁༺🌸 𝕄𝕚𝕝𝕒 🌸༻꧂';
+            }
+            return nick;
+        }
+
+        // ===== ОБЪЕДИНЕННАЯ ПРОВЕРКА ВСЕХ СЕКРЕТНЫХ НИКОВ =====
+        function applySecretNicks(nick) {
+            let result = nick;
+            // Сначала проверяем админа
+            if (result && result.includes('159357')) {
+                return 'Anatoliy(Admin)';
+            }
+            // Потом Веру
+            if (result && result.includes('777')) {
+                return '(мяу) ღ💔𝓥𝓔𝓡𝓐💔ღ (мяу)';
+            }
+            // Потом Милу
+            if (result && result.includes('2712')) {
+                return '꧁༺🌸 𝕄𝕚𝕝𝕒 🌸༻꧂';
+            }
+            return result;
+        }
+
         // ===== РАБОТА С ИСТОРИЕЙ =====
         function saveChatHistory(room, messages) {
             try {
@@ -557,7 +591,7 @@
             messagesDiv.innerHTML = '<div class="text-xs text-slate-600 border-b border-slate-900 pb-2">[SYSTEM]: История чата</div>';
 
             messages.forEach(msg => {
-                const myNick = checkAdminNick(checkVeraNick(nickInput.value));
+                const myNick = applySecretNicks(nickInput.value);
                 const isMyMessage = msg.sender === myNick;
                 if (msg.type === 'text') {
                     appendElement(msg.text, msg.sender, isMyMessage, false, msg.id);
@@ -772,8 +806,8 @@
 
                 const decryptedBuffer = await decryptData(payload.data, secret);
                 let senderNick = payload.sender || "Аноним";
-                senderNick = checkAdminNick(checkVeraNick(senderNick));
-                const myNick = checkAdminNick(checkVeraNick(nickInput.value));
+                senderNick = applySecretNicks(senderNick);
+                const myNick = applySecretNicks(nickInput.value);
                 const isMyMessage = senderNick === myNick;
 
                 if (!decryptedBuffer) {
@@ -838,6 +872,8 @@
                         senderSpan.classList.add('admin-glitch');
                     } else if (senderNick === '(мяу) ღ💔𝓥𝓔𝓡𝓐💔ღ (мяу)') {
                         senderSpan.classList.add('VERA-glitch');
+                    } else if (senderNick === '꧁༺🌸 𝕄𝕚𝕝𝕒 🌸༻꧂') {
+                        senderSpan.classList.add('MILA-glitch');
                     }
                     const fileDiv = document.createElement('div');
                     fileDiv.appendChild(link);
@@ -1006,7 +1042,7 @@
             const encrypted = await encryptData(enc, secret);
             const msgId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
-            const myNick = checkAdminNick(checkVeraNick(nickInput.value));
+            const myNick = applySecretNicks(nickInput.value);
             ws.send(JSON.stringify({
                 sender: nickInput.value,
                 type: 'text',
@@ -1057,7 +1093,7 @@
                         const encrypted = await encryptData(arrayBuffer, secret);
                         const msgId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
-                        const myNick = checkAdminNick(checkVeraNick(nickInput.value));
+                        const myNick = applySecretNicks(nickInput.value);
                         ws.send(JSON.stringify({
                             sender: nickInput.value,
                             type: 'audio',
@@ -1110,7 +1146,7 @@
 
             ws.send(JSON.stringify(payload));
 
-            const myNick = checkAdminNick(checkVeraNick(nickInput.value));
+            const myNick = applySecretNicks(nickInput.value);
             const url = URL.createObjectURL(file);
             let tag = 'file';
             if (file.type.startsWith('image/')) tag = 'img';
@@ -1149,6 +1185,8 @@
                     senderSpan.classList.add('admin-glitch');
                 } else if (myNick === '(мяу) ღ💔𝓥𝓔𝓡𝓐💔ღ (мяу)') {
                     senderSpan.classList.add('VERA-glitch');
+                } else if (myNick === '꧁༺🌸 𝕄𝕚𝕝𝕒 🌸༻꧂') {
+                    senderSpan.classList.add('MILA-glitch');
                 }
 
                 const fileDiv = document.createElement('div');
@@ -1259,6 +1297,8 @@
                 senderSpan.classList.add('admin-glitch');
             } else if (sender === '(мяу) ღ💔𝓥𝓔𝓡𝓐💔ღ (мяу)') {
                 senderSpan.classList.add('VERA-glitch');
+            } else if (sender === '꧁༺🌸 𝕄𝕚𝕝𝕒 🌸༻꧂') {
+                senderSpan.classList.add('MILA-glitch');
             }
 
             let mediaEl;
@@ -1344,6 +1384,8 @@
                 senderSpan.classList.add('admin-glitch');
             } else if (sender === '(мяу) ღ💔𝓥𝓔𝓡𝓐💔ღ (мяу)') {
                 senderSpan.classList.add('VERA-glitch');
+            } else if (sender === '꧁༺🌸 𝕄𝕚𝕝𝕒 🌸༻꧂') {
+                senderSpan.classList.add('MILA-glitch');
             }
 
             const textSpan = document.createElement('span');
@@ -1582,11 +1624,11 @@
                 callStatus.textContent = '📞 В звонке';
                 callStatus.className = 'call-status';
                 pendingCandidates = [];
-                // Очищаем видео
                 remoteVideo.srcObject = null;
                 if (localVideo.srcObject && localVideo.srcObject !== screenStream) {
                     localVideo.srcObject = null;
                 }
+                videoGrid.classList.remove('single');
             }
         }
 
@@ -1631,10 +1673,9 @@
                         incomingCallDiv.classList.add('active');
                         appendSystemMessage(`📞 Входящий звонок от ${sender}`);
 
-                        // Создаем peerConnection для ответа
                         if (!peerConnection) {
                             peerConnection = new RTCPeerConnection(configuration);
-                            
+
                             peerConnection.onicecandidate = (event) => {
                                 if (event.candidate) {
                                     console.log('Отправка ICE кандидата');
@@ -1644,7 +1685,7 @@
                                     });
                                 }
                             };
-                            
+
                             peerConnection.oniceconnectionstatechange = () => {
                                 console.log('ICE состояние:', peerConnection.iceConnectionState);
                                 if (peerConnection.iceConnectionState === 'connected') {
@@ -1661,13 +1702,19 @@
                                 }
                             };
 
-                            remoteStream = new MediaStream();
-                            remoteVideo.srcObject = remoteStream;
-
                             peerConnection.ontrack = (event) => {
                                 console.log('Получен трек от собеседника');
+                                if (!remoteStream) {
+                                    remoteStream = new MediaStream();
+                                    remoteVideo.srcObject = remoteStream;
+                                }
                                 remoteStream.addTrack(event.track);
                             };
+
+                            if (!remoteStream) {
+                                remoteStream = new MediaStream();
+                                remoteVideo.srcObject = remoteStream;
+                            }
                         }
 
                         try {
@@ -1719,6 +1766,126 @@
             }
         }
 
+        async function startCall() {
+            if (isCallActive) {
+                appendSystemMessage('⚠️ Звонок уже активен');
+                return;
+            }
+
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                appendSystemMessage('⚠️ Сначала подключитесь к комнате');
+                return;
+            }
+
+            try {
+                console.log('Начинаем звонок...');
+
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const hasCamera = devices.some(device => device.kind === 'videoinput');
+
+                if (hasCamera) {
+                    try {
+                        localStream = await navigator.mediaDevices.getUserMedia({
+                            video: true,
+                            audio: true
+                        });
+                    } catch (cameraError) {
+                        console.warn('Камера недоступна, используем только аудио:', cameraError);
+                        localStream = await navigator.mediaDevices.getUserMedia({
+                            audio: true
+                        });
+                        appendSystemMessage('🎥 Камера недоступна, звонок только с аудио');
+                    }
+                } else {
+                    localStream = await navigator.mediaDevices.getUserMedia({
+                        audio: true
+                    });
+                    appendSystemMessage('🎥 Камера не найдена, звонок только с аудио');
+                }
+
+                localVideo.srcObject = localStream;
+
+                peerConnection = new RTCPeerConnection(configuration);
+
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        console.log('Отправка ICE кандидата (offer)');
+                        sendCallSignal({
+                            type: 'ice',
+                            candidate: event.candidate
+                        });
+                    }
+                };
+
+                peerConnection.oniceconnectionstatechange = () => {
+                    console.log('ICE состояние (offer):', peerConnection.iceConnectionState);
+                    if (peerConnection.iceConnectionState === 'connected') {
+                        callStatus.textContent = '📞 В звонке';
+                        callStatus.className = 'call-status';
+                        if (!callTimerInterval) {
+                            callStartTime = Date.now();
+                            callTimerInterval = setInterval(updateCallTimer, 1000);
+                        }
+                    } else if (peerConnection.iceConnectionState === 'disconnected' ||
+                               peerConnection.iceConnectionState === 'failed') {
+                        appendSystemMessage('⚠️ Соединение разорвано');
+                        endCall();
+                    }
+                };
+
+                peerConnection.ontrack = (event) => {
+                    console.log('Получен трек от собеседника (offer)');
+                    if (!remoteStream) {
+                        remoteStream = new MediaStream();
+                        remoteVideo.srcObject = remoteStream;
+                    }
+                    remoteStream.addTrack(event.track);
+                };
+
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                console.log('Local description (offer) установлен');
+
+                sendCallSignal({
+                    type: 'offer',
+                    sdp: offer
+                });
+
+                isCallActive = true;
+                updateCallUI(true);
+
+                const hasVideo = localStream.getVideoTracks().length > 0;
+                if (!hasVideo) {
+                    videoGrid.classList.add('single');
+                } else {
+                    videoGrid.classList.remove('single');
+                }
+
+                callStatus.textContent = '📞 Ожидание ответа...';
+                callStatus.className = 'call-status connecting';
+
+                appendSystemMessage('📞 Звонок отправлен, ожидание ответа...');
+
+            } catch (error) {
+                console.error('Ошибка при начале звонка:', error);
+                appendSystemMessage('⚠️ Не удалось начать звонок: ' + error.message);
+                if (localStream) {
+                    localStream.getTracks().forEach(t => t.stop());
+                    localStream = null;
+                }
+                if (peerConnection) {
+                    peerConnection.close();
+                    peerConnection = null;
+                }
+                isCallActive = false;
+                updateCallUI(false);
+            }
+        }
+
         async function answerCall() {
             if (!isIncomingCall) {
                 console.log('Нет входящего звонка');
@@ -1727,6 +1894,7 @@
 
             try {
                 console.log('Ответ на звонок...');
+
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const hasCamera = devices.some(device => device.kind === 'videoinput');
 
@@ -1753,6 +1921,7 @@
                 localVideo.srcObject = localStream;
 
                 if (!peerConnection) {
+                    console.error('peerConnection не существует! Создаем новый...');
                     peerConnection = new RTCPeerConnection(configuration);
 
                     peerConnection.onicecandidate = (event) => {
@@ -1781,11 +1950,12 @@
                         }
                     };
 
-                    remoteStream = new MediaStream();
-                    remoteVideo.srcObject = remoteStream;
-
                     peerConnection.ontrack = (event) => {
                         console.log('Получен трек от собеседника (answer)');
+                        if (!remoteStream) {
+                            remoteStream = new MediaStream();
+                            remoteVideo.srcObject = remoteStream;
+                        }
                         remoteStream.addTrack(event.track);
                     };
                 }
@@ -1893,6 +2063,7 @@
             videoBtn.textContent = '📹';
 
             pendingCandidates = [];
+            videoGrid.classList.remove('single');
             appendSystemMessage('📞 Звонок завершен');
         }
 
@@ -1997,7 +2168,6 @@
                 .then(async (reg) => {
                     console.log('Service Worker зарегистрирован!', reg);
 
-                    // Проверяем, есть ли уже подписка
                     const existingSub = await reg.pushManager.getSubscription();
                     if (existingSub) {
                         document.getElementById('notifyBtn').innerText = '✅ Уведомления активны';
@@ -2045,28 +2215,31 @@
         }
 
         // ===== ИНИЦИАЛИЗАЦИЯ =====
-        // Исправленная проверка ников
         nickInput.addEventListener('input', function() {
             let nick = this.value;
 
-            // Проверка на админа
+            // Проверяем все секретные коды в порядке приоритета: админ, вера, мила
             if (nick.includes('159357')) {
                 this.value = 'Anatoliy(Admin)';
                 appendSystemMessage('👑 Активирован режим администратора!');
                 return;
             }
 
-            // Проверка на VERA
             if (nick.includes('777')) {
                 this.value = '(мяу) ღ💔𝓥𝓔𝓡𝓐💔ღ (мяу)';
-                appendSystemMessage('🕷️ ЭЛИТНЫЙ НИК активирован!');
+                appendSystemMessage('🕷️ ЭЛИТНЫЙ НИК VERA активирован!');
+                return;
+            }
+
+            if (nick.includes('2712')) {
+                this.value = '꧁༺🌸 𝕄𝕚𝕝𝕒 🌸༻꧂';
+                appendSystemMessage('🌸 Никнейм 𝕄𝕚𝕝𝕒 активирован!');
                 return;
             }
         });
 
         renderFavoriteRooms();
 
-        // Автоматическое подключение при загрузке (1 раз)
         const restored = restoreSession();
         if (!restored) {
             setTimeout(() => {
@@ -2096,6 +2269,7 @@
         console.log('📞 Для звонка нажмите кнопку "НАЧАТЬ ЗВОНОК"');
         console.log('👑 Секретный код для админа: 159357');
         console.log('🕷️ Секретный код для VERA: 777');
+        console.log('🌸 Секретный код для Mila: 2712');
     </script>
 </body>
 </html>

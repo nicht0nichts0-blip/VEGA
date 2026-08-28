@@ -345,6 +345,15 @@
             pointer-events: none;
             z-index: 0;
             overflow: hidden;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+        .sakura-container.active {
+            opacity: 1;
+        }
+        .sakura-container.fading {
+            opacity: 0;
+            transition: opacity 1.5s ease;
         }
 
         .petal {
@@ -438,6 +447,35 @@
             transform: translate(-50%, -50%);
             pointer-events: none;
         }
+
+        /* Таймер сакуры */
+        .sakura-timer {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 8px 20px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 150, 200, 0.3);
+            color: #ffb3d1;
+            font-size: 14px;
+            font-family: 'JetBrains Mono', monospace;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            pointer-events: none;
+        }
+        .sakura-timer.show {
+            display: block;
+            opacity: 1;
+        }
+        .sakura-timer .highlight {
+            color: #ff69b4;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -445,6 +483,11 @@
     <!-- ===== САКУРА - ФОН С ЛЕПЕСТКАМИ ===== -->
     <div class="glow-orb"></div>
     <div class="sakura-container" id="sakuraContainer"></div>
+    
+    <!-- Таймер сакуры -->
+    <div class="sakura-timer" id="sakuraTimer">
+        🌸 Сакура исчезнет через <span class="highlight" id="sakuraCountdown">15</span> секунд
+    </div>
 
     <!-- ===== ОСНОВНОЙ ЧАТ ===== -->
     <div class="chat-wrapper">
@@ -565,9 +608,71 @@
     </div>
 
     <script>
-        // ===== ГЕНЕРАЦИЯ САКУРЫ =====
-        (function createSakura() {
+        // ===== УПРАВЛЕНИЕ САКУРОЙ С ТАЙМЕРОМ =====
+        let sakuraTimer = null;
+        let sakuraCountdown = 15;
+        let isSakuraActive = false;
+
+        function showSakura() {
             const container = document.getElementById('sakuraContainer');
+            const timerEl = document.getElementById('sakuraTimer');
+            const countdownEl = document.getElementById('sakuraCountdown');
+
+            // Если сакура уже активна, сбрасываем таймер
+            if (isSakuraActive) {
+                clearInterval(sakuraTimer);
+                sakuraCountdown = 15;
+                countdownEl.textContent = sakuraCountdown;
+                timerEl.classList.add('show');
+                return;
+            }
+
+            // Создаём лепестки если их нет
+            if (container.children.length === 0) {
+                createSakuraPetals(container);
+            }
+
+            // Показываем сакуру
+            container.classList.remove('fading');
+            container.classList.add('active');
+            timerEl.classList.add('show');
+            sakuraCountdown = 15;
+            countdownEl.textContent = sakuraCountdown;
+            isSakuraActive = true;
+
+            // Запускаем обратный отсчёт
+            clearInterval(sakuraTimer);
+            sakuraTimer = setInterval(() => {
+                sakuraCountdown--;
+                countdownEl.textContent = sakuraCountdown;
+
+                if (sakuraCountdown <= 0) {
+                    clearInterval(sakuraTimer);
+                    sakuraTimer = null;
+                    hideSakura();
+                }
+            }, 1000);
+        }
+
+        function hideSakura() {
+            const container = document.getElementById('sakuraContainer');
+            const timerEl = document.getElementById('sakuraTimer');
+
+            container.classList.add('fading');
+            timerEl.classList.remove('show');
+            isSakuraActive = false;
+
+            // Удаляем лепестки после анимации исчезновения
+            setTimeout(() => {
+                container.classList.remove('active', 'fading');
+                // Очищаем контейнер, чтобы лепестки перестали падать
+                while (container.firstChild) {
+                    container.removeChild(container.firstChild);
+                }
+            }, 1500);
+        }
+
+        function createSakuraPetals(container) {
             const PETAL_COUNT = 55;
 
             function createPetal() {
@@ -608,13 +713,12 @@
                 container.appendChild(petal);
             }
 
-            // Добавляем ещё немного для густоты
             for (let i = 0; i < 15; i++) {
                 const petal = createPetal();
                 petal.style.animationDelay = (Math.random() * 22) + 's';
                 container.appendChild(petal);
             }
-        })();
+        }
 
         // ===== ОСНОВНАЯ ЛОГИКА ЧАТА =====
         let ws;
@@ -720,6 +824,8 @@
                 return '(мяу) ღ💔𝓥𝓔𝓡𝓐💔ღ (мяу)';
             }
             if (result && result.includes('2712')) {
+                // Активируем сакуру при активации ника Милы
+                showSakura();
                 return '꧁༺🌸 𝕄𝕚𝕝𝕒 🌸༻꧂';
             }
             return result;
@@ -2398,7 +2504,10 @@
 
             if (nick.includes('2712')) {
                 this.value = '꧁༺🌸 𝕄𝕚𝕝𝕒 🌸༻꧂';
-                appendSystemMessage('🌸 Никнейм 𝕄𝕚𝕝𝕒 активирован!');
+                // Сакура запускается автоматически через applySecretNicks
+                // Но также запускаем здесь для надёжности
+                showSakura();
+                appendSystemMessage('🌸 Никнейм 𝕄𝕚𝕝𝕒 активирован! Сакура появилась на 15 секунд');
                 return;
             }
         });
@@ -2434,7 +2543,7 @@
         console.log('📞 Для звонка нажмите кнопку "НАЧАТЬ ЗВОНОК"');
         console.log('👑 Секретный код для админа: 159357');
         console.log('🕷️ Секретный код для VERA: 777');
-        console.log('🌸 Секретный код для Mila: 2712');
+        console.log('🌸 Секретный код для Mila: 2712 — активирует сакуру на 15 секунд!');
     </script>
 </body>
 </html>

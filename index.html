@@ -7,7 +7,11 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
-        body { background-color: #030712; font-family: 'JetBrains Mono', monospace; }
+        body { 
+            background-color: #030712; 
+            font-family: 'JetBrains Mono', monospace;
+            overflow-x: hidden;
+        }
         .cyber-border { border: 1px solid rgba(6, 182, 212, 0.3); }
         .cyber-card { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(12px); }
         .message {
@@ -330,80 +334,194 @@
             background: #fbbf24;
             animation: pulse 1s ease-in-out infinite;
         }
+
+        /* ===== САКУРА - ПАДАЮЩИЕ ЛЕПЕСТКИ ===== */
+        .sakura-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .petal {
+            position: absolute;
+            top: -10%;
+            width: 28px;
+            height: 28px;
+            background: radial-gradient(circle at 30% 30%, #ffd9e6, #ff8eb5);
+            border-radius: 50% 0 50% 50%;
+            opacity: 0.75;
+            transform-origin: center;
+            box-shadow: 0 0 15px rgba(255, 120, 180, 0.3);
+            animation: fall linear infinite;
+            will-change: transform, left, top;
+            filter: drop-shadow(0 4px 6px rgba(255, 80, 150, 0.2));
+        }
+
+        .petal:nth-child(odd) {
+            background: radial-gradient(circle at 30% 30%, #ffd0e0, #ff7aa5);
+            width: 22px;
+            height: 22px;
+        }
+
+        .petal:nth-child(3n) {
+            background: radial-gradient(circle at 20% 40%, #ffc0d5, #ff5f96);
+            width: 32px;
+            height: 32px;
+            opacity: 0.6;
+        }
+
+        .petal:nth-child(5n+2) {
+            background: radial-gradient(circle at 60% 20%, #ffe0ed, #ff99bb);
+            width: 18px;
+            height: 18px;
+        }
+
+        .petal::after {
+            content: '';
+            position: absolute;
+            top: 8%;
+            left: 18%;
+            width: 30%;
+            height: 20%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.5) 0%, transparent 80%);
+            border-radius: 50%;
+            opacity: 0.5;
+            transform: rotate(-20deg);
+        }
+
+        @keyframes fall {
+            0% {
+                transform: translateX(0px) rotate(0deg) scale(0.9);
+                opacity: 0.7;
+            }
+            10% {
+                opacity: 1;
+            }
+            85% {
+                opacity: 0.9;
+            }
+            100% {
+                transform: translateX(var(--drift, 40px)) rotate(720deg) scale(1.1);
+                opacity: 0.2;
+                top: 110%;
+            }
+        }
+
+        /* Делаем чат поверх сакуры */
+        .chat-wrapper {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 80rem;
+            margin: 0 auto;
+            padding: 0.75rem;
+            width: 100%;
+        }
+
+        /* Небольшое свечение в углу */
+        .glow-orb {
+            position: fixed;
+            width: 80vmax;
+            height: 80vmax;
+            background: radial-gradient(circle at center, rgba(255, 150, 200, 0.05) 0%, transparent 70%);
+            border-radius: 50%;
+            z-index: 0;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
     </style>
 </head>
-<body class="text-cyan-400 h-screen flex flex-col p-3 max-w-5xl mx-auto">
+<body>
 
-    <header class="flex justify-between items-center pb-2 border-b border-cyan-900/50 mb-3">
-        <h1 class="text-lg font-bold text-cyan-300 tracking-widest">VEGA//MESH</h1>
-        <div class="flex items-center gap-3">
-            <span class="text-xs text-slate-500">E2EE ENCRYPTED CHAT</span>
-            <span id="connectionStatus" class="flex items-center text-xs">
-                <span class="status-dot offline" id="statusDot"></span>
-                <span id="statusText" class="text-slate-500">Отключено</span>
-            </span>
+    <!-- ===== САКУРА - ФОН С ЛЕПЕСТКАМИ ===== -->
+    <div class="glow-orb"></div>
+    <div class="sakura-container" id="sakuraContainer"></div>
+
+    <!-- ===== ОСНОВНОЙ ЧАТ ===== -->
+    <div class="chat-wrapper">
+
+        <header class="flex justify-between items-center pb-2 border-b border-cyan-900/50 mb-3">
+            <h1 class="text-lg font-bold text-cyan-300 tracking-widest">VEGA//MESH</h1>
+            <div class="flex items-center gap-3">
+                <span class="text-xs text-slate-500">E2EE ENCRYPTED CHAT</span>
+                <span id="connectionStatus" class="flex items-center text-xs">
+                    <span class="status-dot offline" id="statusDot"></span>
+                    <span id="statusText" class="text-slate-500">Отключено</span>
+                </span>
+            </div>
+        </header>
+
+        <div class="mb-2">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="text-[10px] text-slate-500">⭐ ИЗБРАННЫЕ КОМНАТЫ:</span>
+                <button onclick="addCurrentRoomToFavorites()" class="text-[10px] bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 px-2 py-0.5 rounded transition">
+                    + Добавить текущую
+                </button>
+            </div>
+            <div id="favoriteRooms" class="favorite-rooms"></div>
         </div>
-    </header>
 
-    <div class="mb-2">
-        <div class="flex items-center gap-2 mb-1">
-            <span class="text-[10px] text-slate-500">⭐ ИЗБРАННЫЕ КОМНАТЫ:</span>
-            <button onclick="addCurrentRoomToFavorites()" class="text-[10px] bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 px-2 py-0.5 rounded transition">
-                + Добавить текущую
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3 cyber-card p-3 rounded-xl cyber-border">
+            <div>
+                <label class="text-[10px] text-slate-500 block mb-1">КОМНАТА:</label>
+                <input type="text" id="roomInput" value="main-room" class="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-cyan-200 focus:outline-none focus:border-cyan-500">
+            </div>
+            <div>
+                <label class="text-[10px] text-slate-500 block mb-1">ИМЯ:</label>
+                <input type="text" id="nickInput" value="Agent_X" class="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-cyan-200 focus:outline-none focus:border-cyan-500">
+            </div>
+            <div>
+                <label class="text-[10px] text-slate-500 block mb-1">КЛЮЧ:</label>
+                <input type="password" id="secretKey" placeholder="Секретный пароль..." class="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-cyan-200 focus:outline-none focus:border-cyan-500">
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 mb-3">
+            <button onclick="connectToRoom()" id="connectBtn" class="w-full bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 text-xs py-1.5 rounded-lg transition font-bold">
+                🔄 ПОДКЛЮЧИТЬСЯ
             </button>
-        </div>
-        <div id="favoriteRooms" class="favorite-rooms"></div>
-    </div>
-
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3 cyber-card p-3 rounded-xl cyber-border">
-        <div>
-            <label class="text-[10px] text-slate-500 block mb-1">КОМНАТА:</label>
-            <input type="text" id="roomInput" value="main-room" class="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-cyan-200 focus:outline-none focus:border-cyan-500">
-        </div>
-        <div>
-            <label class="text-[10px] text-slate-500 block mb-1">ИМЯ:</label>
-            <input type="text" id="nickInput" value="Agent_X" class="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-cyan-200 focus:outline-none focus:border-cyan-500">
-        </div>
-        <div>
-            <label class="text-[10px] text-slate-500 block mb-1">КЛЮЧ:</label>
-            <input type="password" id="secretKey" placeholder="Секретный пароль..." class="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-cyan-200 focus:outline-none focus:border-cyan-500">
-        </div>
-    </div>
-
-    <div class="grid grid-cols-2 gap-2 mb-3">
-        <button onclick="connectToRoom()" id="connectBtn" class="w-full bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 text-xs py-1.5 rounded-lg transition font-bold">
-            🔄 ПОДКЛЮЧИТЬСЯ
-        </button>
-        <button onclick="startCall()" id="startCallBtn" class="w-full bg-green-950 hover:bg-green-900 text-green-300 border border-green-800 text-xs py-1.5 rounded-lg transition font-bold">
-            📞 НАЧАТЬ ЗВОНОК
-        </button>
-    </div>
-
-    <button id="notifyBtn" class="mb-3 w-full bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 text-xs py-1.5 rounded-lg transition font-bold">
-        Включить уведомления
-    </button>
-
-    <div id="messages" class="flex-1 overflow-y-auto space-y-3 p-4 cyber-card rounded-xl cyber-border mb-3">
-        <div class="text-xs text-slate-600 border-b border-slate-900 pb-2">[SYSTEM]: Введите комнату и нажмите «Подключиться».</div>
-    </div>
-
-    <div class="cyber-card p-3 rounded-xl cyber-border space-y-2">
-        <div class="flex gap-2 text-xs">
-            <label class="bg-slate-950 hover:bg-slate-900 border border-cyan-900/60 px-3 py-1 rounded cursor-pointer text-cyan-300">
-                📎 Медиа
-                <input type="file" id="fileInput" class="hidden" accept="image/*,video/*">
-            </label>
-            <button id="recordBtn" onclick="toggleVoiceRecord()" class="bg-slate-950 hover:bg-slate-900 border border-cyan-900/60 px-3 py-1 rounded text-cyan-300">
-                🎙️ <span id="recordText">Голос</span>
+            <button onclick="startCall()" id="startCallBtn" class="w-full bg-green-950 hover:bg-green-900 text-green-300 border border-green-800 text-xs py-1.5 rounded-lg transition font-bold">
+                📞 НАЧАТЬ ЗВОНОК
             </button>
         </div>
 
-        <form id="chatForm" class="flex gap-2">
-            <input type="text" id="messageInput" placeholder="Сообщение..." class="flex-1 bg-slate-950 border border-cyan-900/80 rounded-lg px-4 py-2 text-cyan-100 text-sm focus:outline-none focus:border-cyan-400">
-            <button type="submit" class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-6 py-2 rounded-lg text-sm">SEND</button>
-        </form>
+        <button id="notifyBtn" class="mb-3 w-full bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-800 text-xs py-1.5 rounded-lg transition font-bold">
+            Включить уведомления
+        </button>
+
+        <div id="messages" class="flex-1 overflow-y-auto space-y-3 p-4 cyber-card rounded-xl cyber-border mb-3">
+            <div class="text-xs text-slate-600 border-b border-slate-900 pb-2">[SYSTEM]: Введите комнату и нажмите «Подключиться».</div>
+        </div>
+
+        <div class="cyber-card p-3 rounded-xl cyber-border space-y-2">
+            <div class="flex gap-2 text-xs">
+                <label class="bg-slate-950 hover:bg-slate-900 border border-cyan-900/60 px-3 py-1 rounded cursor-pointer text-cyan-300">
+                    📎 Медиа
+                    <input type="file" id="fileInput" class="hidden" accept="image/*,video/*">
+                </label>
+                <button id="recordBtn" onclick="toggleVoiceRecord()" class="bg-slate-950 hover:bg-slate-900 border border-cyan-900/60 px-3 py-1 rounded text-cyan-300">
+                    🎙️ <span id="recordText">Голос</span>
+                </button>
+            </div>
+
+            <form id="chatForm" class="flex gap-2">
+                <input type="text" id="messageInput" placeholder="Сообщение..." class="flex-1 bg-slate-950 border border-cyan-900/80 rounded-lg px-4 py-2 text-cyan-100 text-sm focus:outline-none focus:border-cyan-400">
+                <button type="submit" class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-6 py-2 rounded-lg text-sm">SEND</button>
+            </form>
+        </div>
+
     </div>
 
+    <!-- ===== ВИДЕО-ЗВОНОК ===== -->
     <div id="callContainer" class="call-container">
         <div class="video-grid" id="videoGrid">
             <div class="video-wrapper" id="localVideoWrapper">
@@ -447,6 +565,57 @@
     </div>
 
     <script>
+        // ===== ГЕНЕРАЦИЯ САКУРЫ =====
+        (function createSakura() {
+            const container = document.getElementById('sakuraContainer');
+            const PETAL_COUNT = 55;
+
+            function createPetal() {
+                const petal = document.createElement('div');
+                petal.classList.add('petal');
+
+                const leftPos = Math.random() * 100;
+                petal.style.left = leftPos + '%';
+
+                const duration = 8 + Math.random() * 12;
+                petal.style.animationDuration = duration + 's';
+
+                const delay = Math.random() * 18;
+                petal.style.animationDelay = delay + 's';
+
+                const drift = (Math.random() * 160) - 80;
+                petal.style.setProperty('--drift', drift + 'px');
+
+                const sizeScale = 0.6 + Math.random() * 1.0;
+                const baseSize = 26;
+                const newSize = baseSize * sizeScale;
+                petal.style.width = newSize + 'px';
+                petal.style.height = newSize + 'px';
+
+                if (Math.random() > 0.6) {
+                    petal.style.borderRadius = '40% 0 60% 40%';
+                } else {
+                    petal.style.borderRadius = '50% 0 50% 50%';
+                }
+
+                petal.style.opacity = 0.4 + Math.random() * 0.5;
+
+                return petal;
+            }
+
+            for (let i = 0; i < PETAL_COUNT; i++) {
+                const petal = createPetal();
+                container.appendChild(petal);
+            }
+
+            // Добавляем ещё немного для густоты
+            for (let i = 0; i < 15; i++) {
+                const petal = createPetal();
+                petal.style.animationDelay = (Math.random() * 22) + 's';
+                container.appendChild(petal);
+            }
+        })();
+
         // ===== ОСНОВНАЯ ЛОГИКА ЧАТА =====
         let ws;
         const messagesDiv = document.getElementById('messages');
@@ -544,15 +713,12 @@
         // ===== ОБЪЕДИНЕННАЯ ПРОВЕРКА ВСЕХ СЕКРЕТНЫХ НИКОВ =====
         function applySecretNicks(nick) {
             let result = nick;
-            // Сначала проверяем админа
             if (result && result.includes('159357')) {
                 return 'Anatoliy(Admin)';
             }
-            // Потом Веру
             if (result && result.includes('777')) {
                 return '(мяу) ღ💔𝓥𝓔𝓡𝓐💔ღ (мяу)';
             }
-            // Потом Милу
             if (result && result.includes('2712')) {
                 return '꧁༺🌸 𝕄𝕚𝕝𝕒 🌸༻꧂';
             }
@@ -2218,7 +2384,6 @@
         nickInput.addEventListener('input', function() {
             let nick = this.value;
 
-            // Проверяем все секретные коды в порядке приоритета: админ, вера, мила
             if (nick.includes('159357')) {
                 this.value = 'Anatoliy(Admin)';
                 appendSystemMessage('👑 Активирован режим администратора!');
